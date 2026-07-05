@@ -40,6 +40,8 @@ export function TripHome({ trip }: { trip: Trip }) {
           </div>
         )}
 
+        <div className="desk-2col">
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <div className="label" style={{ padding: "4px 6px 0" }}>Rounds</div>
         {trip.rounds.map((r, i) => (
           <button key={i} className="card row" style={{ width: "100%", textAlign: "left" }} onClick={() => nav(`/org/t/${trip.id}/r/${i + 1}`)}>
@@ -55,7 +57,9 @@ export function TripHome({ trip }: { trip: Trip }) {
         {trip.rounds.length === 0 && (
           <div className="card hint">Add rounds and courses in Setup, then share each morning's round pack from the round screen.</div>
         )}
+        </div>
 
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {res && (
           <>
             <div className="label" style={{ padding: "4px 6px 0" }}>Trip leaderboard</div>
@@ -86,6 +90,8 @@ export function TripHome({ trip }: { trip: Trip }) {
             </div>
           </>
         )}
+        </div>
+        </div>
 
         <div className="btn-row">
           <button className="btn ghost" onClick={() => backup(trip)}>Backup trip (JSON)</button>

@@ -48,12 +48,14 @@ export function Results({ trip, round }: { trip: Trip; round: number }) {
         <span />
       </div>
       <main>
-        <div className="seg">
+        <div className="seg mobile-only">
           <button className={tab === "daily" ? "on" : ""} onClick={() => setTab("daily")}>Daily comp</button>
           <button className={tab === "hcap" ? "on" : ""} onClick={() => setTab("hcap")}>Handicaps</button>
         </div>
 
-        {tab === "daily" ? (
+        <div className="desk-2col">
+          <div className={tab === "daily" ? "" : "mobile-hidden"}>
+          <div className="label desk-only" style={{ paddingBottom: 6 }}>Daily comp</div>
           <div className="card divided" data-testid="daily-results">
             {order.map((p) => (
               <div className="row" key={p}>
@@ -75,8 +77,10 @@ export function Results({ trip, round }: { trip: Trip; round: number }) {
               </div>
             ))}
           </div>
-        ) : (
-          <div className="card divided">
+          </div>
+          <div className={tab === "hcap" ? "" : "mobile-hidden"}>
+          <div className="label desk-only" style={{ paddingBottom: 6 }}>Handicaps</div>
+          <div className="card divided" data-testid="hcap-results">
             {trip.players.map((p, i) => {
               const into = res.hcInto[round - 1][i];
               const after = anyPlayed ? into + adjustment(rr.pos[i], n) : into;
@@ -89,7 +93,8 @@ export function Results({ trip, round }: { trip: Trip; round: number }) {
               );
             })}
           </div>
-        )}
+          </div>
+        </div>
 
         <button className="btn" onClick={share}>{shared ? "Shared ✓" : "Share results snapshot to group chat"}</button>
         {!r.completed && <p className="hint">Round not completed yet — results move as cards come in.</p>}

@@ -28,7 +28,38 @@ body {
   -webkit-font-smoothing: antialiased;
   padding-bottom: env(safe-area-inset-bottom);
 }
-#root { max-width: 520px; margin: 0 auto; min-height: 100dvh; display: flex; flex-direction: column; }
+.shell { max-width: 520px; margin: 0 auto; min-height: 100dvh; display: flex; flex-direction: column; }
+
+/* organiser views widen into a desk layout on laptops */
+.desk-only { display: none; }
+.desk-2col { display: flex; flex-direction: column; gap: 10px; }
+@media (min-width: 900px) {
+  .shell.wide { max-width: 1180px; }
+  .shell.wide .desk-only { display: block; }
+  .shell.wide .mobile-only { display: none; }
+  .shell.wide .mobile-hidden { display: block; }
+  .shell.wide .desk-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; }
+  .shell.wide main { padding: 0 16px 32px; }
+}
+.mobile-hidden { display: none; }
+
+/* spreadsheet-style card grid for laptop keying */
+.sheet { overflow-x: auto; }
+.sheet table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+.sheet th, .sheet td {
+  border: 1px solid var(--line); padding: 3px 4px; text-align: center;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.sheet thead th { background: var(--chip-green-bg); color: var(--turf); font-size: 11px; }
+.sheet thead tr.facts th { background: var(--screen-bg); color: var(--ink-soft); font-weight: 600; }
+.sheet td.name { text-align: left; font-weight: 650; }
+.sheet td.sum { font-weight: 700; background: var(--screen-bg); }
+.sheet input {
+  width: 34px; padding: 5px 2px; text-align: center; border: 1px solid transparent;
+  background: var(--paper); border-radius: 6px; font-size: 12.5px;
+}
+.sheet input:focus { border-color: var(--turf); }
+.sheet select { width: 64px; padding: 4px; font-size: 11.5px; border-radius: 6px; }
 
 .appbar {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;

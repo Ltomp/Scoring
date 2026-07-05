@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { mutate, Trip, useAppState } from "../../state/store";
 import { nav } from "../../router";
-import { HOLES } from "../../engine";
+import { HOLES, RoundResult } from "../../engine";
 import { shareUrl } from "../../share/codec";
 import { completeRound, fetchCards } from "../../sync/dropbox";
 import { ShareSheet } from "../../components/ShareSheet";
@@ -100,7 +100,9 @@ export function RoundDashboard({ trip, round }: { trip: Trip; round: number }) {
         />
       )}
 
-      <div className="card divided" data-testid="card-list">
+      <DeskGrid trip={trip} round={round} rr={rr} daily={daily} />
+
+      <div className="card divided mobile-only" data-testid="card-list">
         {trip.players.map((p, i) => {
           const card = r.cards[i];
           const meta = r.cardMeta[i];
@@ -149,6 +151,102 @@ export function RoundDashboard({ trip, round }: { trip: Trip; round: number }) {
   );
 }
 
+/** Laptop view: the whole field keyed like the workbook's scoring sheet. */
+function DeskGrid({ trip, round, rr, daily }: {
+  trip: Trip; round: number; rr: RoundResult; daily: number[];
+}) {
+  const r = trip.rounds[round - 1];
+  const course = r.course!;
+  const locked = r.completed;
+
+  const setScore = (p: number, h: number, v: string) => {
+    const n = Number(v);
+    const s = Number.isInteger(n) && n >= 1 && n <= 15 ? n : 0;
+    mutate((d) => {
+      const rd = d.trips.find((x) => x.id === trip.id)!.rounds[round - 1];
+      const card = rd.cards[p] ? [...rd.cards[p]!] : Array(HOLES).fill(0);
+      card[h] = s;
+      rd.cards[p] = card;
+      rd.cardMeta[p] = { source: "manual", updatedAt: Date.now() };
+    });
+  };
+  const gross = (p: number, from: number, to: number) => {
+    const card = r.cards[p];
+    if (!card) return "";
+    const sum = card.slice(from, to).reduce((a, b) => a + b, 0);
+    return sum || "";
+  };
+
+  return (
+    <div className="card desk-only" style={{ padding: 10 }}>
+      <div className="sheet">
+        <table data-testid="desk-grid">
+          <thead>
+            <tr>
+              <th>Player</th><th>HC</th>
+              {course.pars.map((_, h) => <th key={h} className="num">{h + 1}</th>)}
+              <th>Out</th><th>In</th><th>Gross</th><th>Pts</th><th>Pen</th><th>Status</th>
+            </tr>
+            <tr className="facts">
+              <th style={{ textAlign: "left" }}>Par {course.pars.reduce((a, b) => a + b, 0)}</th><th />
+              {course.pars.map((p, h) => <th key={h} className="num">{p}</th>)}
+              <th colSpan={6} />
+            </tr>
+            <tr className="facts">
+              <th style={{ textAlign: "left" }}>SI</th><th />
+              {course.sis.map((s, h) => <th key={h} className="num">{s}</th>)}
+              <th colSpan={6} />
+            </tr>
+          </thead>
+          <tbody>
+            {trip.players.map((p, i) => {
+              const meta = r.cardMeta[i];
+              const card = r.cards[i];
+              return (
+                <tr key={i}>
+                  <td className="name">{p.name}</td>
+                  <td className="num">{daily[i]}</td>
+                  {course.pars.map((_, h) => (
+                    <td key={h} style={{ padding: 1 }}>
+                      <input
+                        aria-label={`${p.name} hole ${h + 1}`}
+                        inputMode="numeric"
+                        disabled={locked}
+                        value={card?.[h] || ""}
+                        placeholder="·"
+                        onChange={(e) => setScore(i, h, e.target.value)}
+                        data-testid={`dg-${i}-${h}`}
+                      />
+                    </td>
+                  ))}
+                  <td className="sum num">{gross(i, 0, 9)}</td>
+                  <td className="sum num">{gross(i, 9, 18)}</td>
+                  <td className="sum num">{gross(i, 0, 18)}</td>
+                  <td className="sum num" data-testid={`dg-pts-${i}`}>{card ? rr.raw[i] : locked ? rr.avg : ""}</td>
+                  <td style={{ padding: 1 }}>
+                    {locked
+                      ? (r.penalties[i] ? `−${r.penalties[i]}` : "")
+                      : <PenaltyPicker trip={trip} round={round} player={i} tid={`dg-pen-${i}`} />}
+                  </td>
+                  <td>
+                    {card
+                      ? <span className="chip ok">{meta?.source === "manual" ? "keyed" : meta?.source === "link" ? "QR" : "in"}</span>
+                      : <span className="chip mute">{locked ? "absent" : "waiting"}</span>}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="hint" style={{ marginBottom: 0 }}>
+        Type straight into the grid to key a paper card — keyed cards beat auto-synced
+        ones. Blank cell = wipe (0 points).
+      </p>
+    </div>
+  );
+}
+
 function Shell({ trip, round, children }: { trip: Trip; round: number; children: React.ReactNode }) {
   return (
     <>
@@ -162,7 +260,7 @@ function Shell({ trip, round, children }: { trip: Trip; round: number; children:
   );
 }
 
-function PenaltyPicker({ trip, round, player }: { trip: Trip; round: number; player: number }) {
+function PenaltyPicker({ trip, round, player, tid }: { trip: Trip; round: number; player: number; tid?: string }) {
   const v = trip.rounds[round - 1].penalties[player];
   return (
     <select
@@ -172,7 +270,7 @@ function PenaltyPicker({ trip, round, player }: { trip: Trip; round: number; pla
       onChange={(e) => mutate((d) => {
         d.trips.find((x) => x.id === trip.id)!.rounds[round - 1].penalties[player] = Number(e.target.value);
       })}
-      data-testid={`penalty-${player}`}
+      data-testid={tid ?? `penalty-${player}`}
     >
       <option value={0}>pen 0</option>
       <option value={1}>pen −1</option>

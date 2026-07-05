@@ -21,8 +21,10 @@ test.beforeAll(async () => {
 });
 test.afterAll(() => stub.server.close());
 
+const PHONE = { viewport: { width: 390, height: 760 } };
+
 test("organiser → player → results round trip", async ({ browser }) => {
-  const org = await browser.newContext();
+  const org = await browser.newContext(PHONE);
   const orgPage = await org.newPage();
 
   // --- organiser creates trip
@@ -56,7 +58,7 @@ test("organiser → player → results round trip", async ({ browser }) => {
   expect(packUrl).toContain("#/i/");
 
   // --- player Al opens the pack and scores all 4s (gross par every hole)
-  const player = await browser.newContext();
+  const player = await browser.newContext(PHONE);
   const playerPage = await player.newPage();
   await playerPage.goto(packUrl);
   await playerPage.getByRole("button", { name: "That's me" }).first().click();
@@ -105,4 +107,49 @@ test("organiser → player → results round trip", async ({ browser }) => {
 
   // player still sees only their own card — no comp anywhere
   await expect(playerPage.getByText("Bob")).toHaveCount(0);
+});
+
+test("laptop organiser keys cards straight into the desk grid", async ({ browser }) => {
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await ctx.newPage();
+
+  await page.goto(APP);
+  await page.getByRole("button", { name: /^Organiser/ }).click();
+  await page.getByTestId("new-trip").click();
+  await page.getByTestId("trip-name").fill("Desk Cup");
+  await page.getByTestId("create-trip").click(); // no drop-box: QR/keyed only
+
+  for (const [name, hcap] of [["Dee Delta", "10"], ["Ed Echo", "6"]] as const) {
+    await page.getByTestId("player-name").fill(name);
+    await page.getByTestId("player-hcap").fill(hcap);
+    await page.getByTestId("add-player").click();
+  }
+  await page.getByTestId("add-round").click();
+  await page.getByTestId("course-name-0").fill("Desk Links");
+  await page.getByTestId("course-paste-0").fill(
+    `${Array(18).fill(4).join(" ")}\n${Array.from({ length: 18 }, (_, i) => i + 1).join(" ")}`,
+  );
+  await page.getByTestId("course-save-0").click();
+  await page.getByTestId("setup-done").click();
+  await page.getByText("Round 1", { exact: false }).first().click();
+
+  // the desk grid is visible at laptop width; mobile list is not
+  await expect(page.getByTestId("desk-grid")).toBeVisible();
+  await expect(page.getByTestId("card-list")).toBeHidden();
+
+  // key Dee's card: all par (4s) -> h'cap 10: 10x3 + 8x2 = 46 pts
+  for (let h = 0; h < 18; h++) await page.getByTestId(`dg-0-${h}`).fill("4");
+  await expect(page.getByTestId("dg-pts-0")).toHaveText("46");
+  // key Ed: all 5s -> h'cap 6: 6x2 + 12x1 = 24, then pen -1 = 23
+  for (let h = 0; h < 18; h++) await page.getByTestId(`dg-1-${h}`).fill("5");
+  await expect(page.getByTestId("dg-pts-1")).toHaveText("24");
+  await page.getByTestId("dg-pen-1").selectOption("1");
+
+  page.on("dialog", (d) => d.accept());
+  await page.getByTestId("complete-round").click();
+  await expect(page.getByTestId("net-0")).toHaveText("46");
+  await expect(page.getByTestId("net-1")).toHaveText("23");
+  // desk results show both panels side by side
+  await expect(page.getByTestId("daily-results")).toBeVisible();
+  await expect(page.getByTestId("hcap-results")).toBeVisible();
 });

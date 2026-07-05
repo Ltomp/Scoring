@@ -83,3 +83,55 @@ test("capture key screens @shots", async ({ browser }) => {
 
   stub.server.close();
 });
+
+test("capture laptop organiser screens @shots", async ({ browser }) => {
+  test.setTimeout(120000);
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await ctx.newPage();
+
+  await page.goto(APP);
+  await page.getByRole("button", { name: /^Organiser/ }).click();
+  await page.getByTestId("new-trip").click();
+  await page.getByTestId("trip-name").fill("Peninsula Trip");
+  await page.getByTestId("create-trip").click();
+
+  const roster: [string, string][] = [
+    ["Attiwill, Scott", "14"], ["Hoy, John", "8"], ["Ireland, Kev", "12"],
+    ["Maher, Joel", "16"], ["McEwan, Paul", "21"], ["O'Callaghan, Joc", "14"],
+    ["Rettke, Butch", "18"], ["Tompkins, Lawrie", "15"],
+  ];
+  for (const [name, hcap] of roster) {
+    await page.getByTestId("player-name").fill(name);
+    await page.getByTestId("player-hcap").fill(hcap);
+    await page.getByTestId("add-player").click();
+  }
+  await page.getByTestId("add-round").click();
+  await page.getByTestId("course-name-0").fill("The Dunes Golf Links");
+  await page.getByTestId("course-paste-0").fill(
+    "4 4 3 5 4 3 4 5 4 4 3 5 4 4 4 3 5 4\n16 10 2 4 6 8 12 15 18 1 14 13 17 11 7 9 5 3",
+  );
+  await page.getByTestId("course-save-0").click();
+  await page.getByTestId("setup-done").click();
+  await page.getByText("Round 1", { exact: false }).first().click();
+
+  // key a few cards straight into the grid
+  const cards = [
+    [5, 4, 4, 6, 5, 3, 4, 7, 4, 5, 3, 6, 4, 5, 4, 4, 6, 5],
+    [4, 5, 3, 5, 6, 4, 5, 6, 5, 4, 4, 7, 5, 5, 4, 3, 6, 4],
+    [6, 5, 4, 7, 5, 4, 5, 6, 4, 6, 4, 6, 5, 5, 5, 4, 7, 5],
+  ];
+  for (let p = 0; p < cards.length; p++)
+    for (let h = 0; h < 18; h++)
+      await page.getByTestId(`dg-${p}-${h}`).fill(String(cards[p][h]));
+  await page.getByTestId("dg-pen-2").selectOption("1");
+  await page.screenshot({ path: `${OUT}/L1-desk-dashboard.png` });
+
+  page.on("dialog", (d) => d.accept());
+  await page.getByTestId("complete-round").click();
+  await page.waitForSelector('[data-testid="daily-results"]');
+  await page.screenshot({ path: `${OUT}/L2-desk-results.png` });
+
+  await page.getByRole("link", { name: /‹ Round 1/ }).click();
+  await page.getByRole("link", { name: /‹ Peninsula Trip/ }).click();
+  await page.screenshot({ path: `${OUT}/L3-desk-triphome.png` });
+});

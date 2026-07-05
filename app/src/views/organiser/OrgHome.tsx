@@ -1,8 +1,28 @@
-import { mutate, useAppState } from "../../state/store";
+import { useRef } from "react";
+import { mutate, normaliseTrip, Trip, useAppState } from "../../state/store";
 import { nav } from "../../router";
 
 export function OrgHome() {
   const { trips } = useAppState();
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const restore = async (file: File) => {
+    try {
+      const t = JSON.parse(await file.text()) as Trip;
+      if (!t?.id || !Array.isArray(t.players) || !Array.isArray(t.rounds) || !t.writeKey || !t.readKey) {
+        throw new Error("That file isn't a trip backup from this app.");
+      }
+      const existing = trips.find((x) => x.id === t.id);
+      if (existing && !confirm(`"${t.name}" already exists on this device — replace it with the backup?`)) return;
+      mutate((d) => {
+        normaliseTrip(t);
+        d.trips = [t, ...d.trips.filter((x) => x.id !== t.id)];
+      });
+      nav(`/org/t/${t.id}`);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Couldn't read that backup file.");
+    }
+  };
   const active = trips.filter((t) => !t.archived);
   const archived = trips.filter((t) => t.archived);
 
@@ -33,6 +53,24 @@ export function OrgHome() {
           </button>
         ))}
         <button className="btn" onClick={() => nav("/org/new")} data-testid="new-trip">+ Start new trip</button>
+        <button className="btn ghost" onClick={() => fileRef.current?.click()}>
+          Restore trip from backup (JSON)
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="application/json,.json"
+          style={{ display: "none" }}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void restore(f);
+            e.target.value = "";
+          }}
+        />
+        <p className="hint" style={{ padding: "0 6px" }}>
+          Moving the comp between phone and laptop: Backup on one device, Restore here on
+          the other. Cards keep auto-collecting from the drop-box on whichever device is open.
+        </p>
 
         {archived.length > 0 && <div className="label" style={{ padding: "8px 6px 0" }}>Archive</div>}
         {archived.map((t) => (

@@ -20,6 +20,12 @@ Up to 32 players and 10 rounds per trip; multi-trip with archive.
   Phones scan QRs with the native camera; no in-app scanner.
 - Score entry works fully offline; uploads queue until there's signal, and
   the QR hand-in covers a dead battery or zero reception.
+- **On a laptop** (≥900px window) the organiser screens switch to a desk
+  layout: a spreadsheet-style grid to key every player's card directly
+  (like the workbook's scoring sheet), results and handicaps side by side,
+  and a two-column trip overview. Same app, same URL — use **Backup trip
+  (JSON)** / **Restore trip from backup** to move the comp between phone
+  and laptop; cards auto-collect on whichever device is open.
 
 ## One-time setup (trip organiser)
 

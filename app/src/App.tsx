@@ -65,25 +65,26 @@ export function App(): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [p0, p1]);
 
+  let view: JSX.Element;
   if (p0 === "player") {
-    if (p1 === "score") return <ScoreEntry />;
-    if (p1 === "handin") return <HandIn />;
-    return <PlayerHome />;
+    if (p1 === "score") view = <ScoreEntry />;
+    else if (p1 === "handin") view = <HandIn />;
+    else view = <PlayerHome />;
+  } else if (p0 === "org") {
+    const trip = p1 === "t" && p2 ? state.trips.find((t) => t.id === p2) : undefined;
+    if (p1 === "new") view = <NewTrip />;
+    else if (trip && p3 === "setup") view = <TripSetup trip={trip} />;
+    else if (trip && p3 === "r" && p4) {
+      const rn = Number(p4);
+      view = route.parts[5] === "results"
+        ? <Results trip={trip} round={rn} />
+        : <RoundDashboard trip={trip} round={rn} />;
+    } else if (trip) view = <TripHome trip={trip} />;
+    else view = <OrgHome />;
+  } else {
+    view = <Home />;
   }
-  if (p0 === "org") {
-    if (p1 === "new") return <NewTrip />;
-    if (p1 === "t" && p2) {
-      const trip = state.trips.find((t) => t.id === p2);
-      if (!trip) return <OrgHome />;
-      if (p3 === "setup") return <TripSetup trip={trip} />;
-      if (p3 === "r" && p4) {
-        const rn = Number(p4);
-        if (route.parts[5] === "results") return <Results trip={trip} round={rn} />;
-        return <RoundDashboard trip={trip} round={rn} />;
-      }
-      return <TripHome trip={trip} />;
-    }
-    return <OrgHome />;
-  }
-  return <Home />;
+
+  // organiser routes widen into the desk layout on laptops
+  return <div className={p0 === "org" ? "shell wide" : "shell"}>{view}</div>;
 }
