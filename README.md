@@ -6,6 +6,11 @@ handicapping system, and an overall trip leaderboard. Built for **Excel on
 the web** (works equally in desktop Excel, LibreOffice and Google Sheets —
 only classic spreadsheet functions are used).
 
+> **There's also an app.** The [`app/`](app/) directory (developed on the
+> `app` branch) is a mobile PWA that runs the same verified rules: players
+> score on their own phones, cards auto-upload to the organiser, and only
+> organisers see the comp. See [`app/README.md`](app/README.md).
+
 **The template:** [`Scoring_Template_V2.xlsx`](Scoring_Template_V2.xlsx)
 
 Capacity: up to **32 players** and **10 rounds** per trip. Unused player
