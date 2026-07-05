@@ -103,13 +103,16 @@ export function ScoreEntry() {
             <div className="holes-strip" style={{ marginBottom: off === 0 ? 4 : 0 }} key={off}>
               {Array.from({ length: 9 }, (_, i) => {
                 const h = off + i;
+                const s = scores[h];
+                const hp = s ? holePoints(s, pack.course.pars[h], pack.course.sis[h], me.daily) : 0;
                 return (
                   <button
                     key={h}
-                    className={`hs num ${h === hole ? "cur" : scores[h] ? "done" : ""}`}
+                    className={`hs num ${h === hole ? "cur" : s ? "done" : ""}`}
+                    aria-label={`hole ${h + 1}${s ? `, score ${s}, ${hp} points` : ""}`}
                     onClick={() => go(h)}
                   >
-                    {h + 1}
+                    {s ? (<>{s}<sup className={`sup-pts ${hp === 0 ? "zero" : ""}`}>{hp}</sup></>) : h + 1}
                   </button>
                 );
               })}

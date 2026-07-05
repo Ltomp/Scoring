@@ -41,6 +41,35 @@ export function HandIn() {
       </div>
       <main>
         <div className="card">
+          {[0, 9].map((off) => (
+            <table className="mini-table" key={off} style={{ marginBottom: 6 }}>
+              <thead>
+                <tr>
+                  <th>Hole</th>
+                  {Array.from({ length: 9 }, (_, i) => <th key={i} className="num">{off + i + 1}</th>)}
+                  <th>{off === 0 ? "Out" : "In"}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style={{ color: "var(--ink-soft)" }}>Score</td>
+                  {Array.from({ length: 9 }, (_, i) => {
+                    const h = off + i;
+                    const s = scores[h];
+                    const hp = s ? holePoints(s, pack.course.pars[h], pack.course.sis[h], me.daily) : 0;
+                    return (
+                      <td key={i} className="num">
+                        {s ? (<>{s}<sup className={`sup-pts ${hp === 0 ? "zero" : ""}`}>{hp}</sup></>) : "·"}
+                      </td>
+                    );
+                  })}
+                  <td className="num" style={{ fontWeight: 700 }}>
+                    {gross(off, off + 9) || "·"}<sup className="sup-pts">{pts(off, off + 9)}</sup>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          ))}
           <table className="mini-table">
             <thead>
               <tr><th>{me.name}</th><th>Out</th><th>In</th><th>Total</th></tr>

@@ -58,6 +58,14 @@ body {
   width: 34px; padding: 6px 7px 4px 2px; text-align: center; border: 1px solid transparent;
   background: var(--paper); border-radius: 6px; font-size: 12.5px;
 }
+/* scorecard notation: stableford points as superscript beside the strokes */
+sup.sup-pts {
+  font-size: 8.5px; font-weight: 750; color: var(--turf);
+  margin-left: 1px; line-height: 0;
+}
+sup.sup-pts.zero { color: var(--flag); }
+.hs.cur sup.sup-pts { color: rgba(255, 255, 255, .9); }
+
 /* gross score with stableford points as a superscript in the same cell */
 .sheet td.scorecell { position: relative; padding: 1px; }
 .sheet td.scorecell .pts-sup {
