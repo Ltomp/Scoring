@@ -207,7 +207,7 @@ function DeskGrid({ trip, round, rr, daily }: {
                   <td className="name">{p.name}</td>
                   <td className="num">{daily[i]}</td>
                   {course.pars.map((_, h) => (
-                    <td key={h} style={{ padding: 1 }}>
+                    <td key={h} className="scorecell">
                       <input
                         aria-label={`${p.name} hole ${h + 1}`}
                         inputMode="numeric"
@@ -217,6 +217,11 @@ function DeskGrid({ trip, round, rr, daily }: {
                         onChange={(e) => setScore(i, h, e.target.value)}
                         data-testid={`dg-${i}-${h}`}
                       />
+                      {card?.[h] ? (
+                        <span className={`pts-sup num ${rr.pts[i][h] === 0 ? "zero" : ""}`} aria-hidden="true">
+                          {rr.pts[i][h]}
+                        </span>
+                      ) : null}
                     </td>
                   ))}
                   <td className="sum num">{gross(i, 0, 9)}</td>
