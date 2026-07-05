@@ -21,7 +21,7 @@ export interface RoundPackPayload {
   dropbox: (DropboxConfig & { writeKey: string }) | null;
 }
 
-/** A single player's card, for the offline QR/link hand-in fallback. */
+/** A single player's card as a link — organisers can import one directly. */
 export interface CardPayload {
   v: 1;
   kind: "card";

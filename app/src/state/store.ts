@@ -10,7 +10,8 @@ export interface TripRound {
   course: Course | null;
   /** received cards, indexed by roster position; null = nothing yet */
   cards: (Card | null)[];
-  cardMeta: ({ source: CardSource; updatedAt: number } | null)[];
+  /** final = marker pressed Submit (or organiser keyed/imported it) */
+  cardMeta: ({ source: CardSource; updatedAt: number; final?: boolean } | null)[];
   penalties: number[];
   completed: boolean;
 }
@@ -29,9 +30,26 @@ export interface Trip {
 }
 
 export interface PlayerCardState {
+  /** roster index of the playing partner whose OFFICIAL card this phone keeps */
+  markIndex: number | null;
+  /** the partner's gross scores — the card that gets submitted */
   scores: Card;
+  /** this player's own optional tally, for cross-checking; never submitted */
+  tally: Card;
+  /** set when the marker pressed "Submit round"; locks the card */
+  submittedAt: number | null;
   /** last time the card was accepted by the drop-box, ms epoch */
   syncedAt: number | null;
+}
+
+export function emptyPlayerCard(): PlayerCardState {
+  return {
+    markIndex: null,
+    scores: Array(18).fill(0),
+    tally: Array(18).fill(0),
+    submittedAt: null,
+    syncedAt: null,
+  };
 }
 
 export interface PlayerState {

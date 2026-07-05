@@ -164,6 +164,10 @@ textarea { resize: vertical; }
 .pts-line { text-align: center; font-size: 14px; color: var(--ink-soft); margin-top: 4px; }
 .pts-line b { color: var(--turf); font-size: 16px; }
 .wipe-btn { display: block; margin: 8px auto 0; background: none; border: 0; font-size: 13.5px; font-weight: 650; color: var(--flag); padding: 8px 16px; }
+.step-btn.mini { width: 44px; height: 44px; font-size: 24px; border-width: 1.5px; }
+.tally-card { padding: 10px 14px; }
+.tally-value { font-size: 28px; font-weight: 750; min-width: 56px; text-align: center; }
+.tally-clear { background: none; border: 0; color: var(--flag); font-size: 12px; font-weight: 650; padding: 4px 6px; }
 .holes-strip { display: grid; grid-template-columns: repeat(9, 1fr); gap: 4px; }
 .hs {
   text-align: center; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums;

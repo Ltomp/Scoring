@@ -17,19 +17,23 @@ export function onSyncStatus(l: (s: SyncStatus) => void): () => void {
   return () => statusListeners.delete(l);
 }
 
+/**
+ * Uploads the PARTNER's card this phone is marking. Drafts stream up as
+ * the round is played (done=false); pressing "Submit round" re-sends with
+ * done=true, which is what makes the card official.
+ */
 const outbox = createOutbox({
   async send() {
     const { player } = getState();
     const pack = player.pack;
-    if (!pack?.dropbox || player.myIndex == null) return;
+    if (!pack?.dropbox) return;
     const key = playerCardKey(pack.tripId, pack.round);
     const card = player.cards[key];
-    if (!card) return;
-    const done = card.scores.every((s) => s > 0) || card.scores.filter((s) => s > 0).length === 18;
+    if (!card || card.markIndex == null) return;
     await submitCard(
       pack.dropbox, pack.tripId, pack.dropbox.writeKey,
-      pack.round, player.myIndex, pack.players[player.myIndex]?.name ?? "",
-      card.scores, done,
+      pack.round, card.markIndex, pack.players[card.markIndex]?.name ?? "",
+      card.scores, card.submittedAt != null,
     );
     mutate((d) => {
       const c = d.player.cards[key];
@@ -39,7 +43,7 @@ const outbox = createOutbox({
   onStatus: setStatus,
 });
 
-/** Call after every score change. */
+/** Call after every change to the partner's card (or on submit). */
 export function pushCard(): void {
   const pack = getState().player.pack;
   if (!pack?.dropbox) {
@@ -47,6 +51,10 @@ export function pushCard(): void {
     return;
   }
   outbox.push();
+}
+
+export function cardIsDelivered(): boolean {
+  return !outbox.isDirty;
 }
 
 if (typeof window !== "undefined") {

@@ -2,16 +2,19 @@ import { expect, test } from "@playwright/test";
 import { startStubDropbox } from "./stub-dropbox.mjs";
 
 /**
- * Full trip happy path:
+ * Full trip happy path with the marker workflow:
  * organiser creates a trip with a (stubbed) drop-box, adds 3 players and a
- * course → shares the round pack → a player opens it, scores 18 holes, card
- * auto-syncs → organiser keys a second card from paper, applies a penalty,
- * completes the round → results and leaderboard match hand-computed values.
+ * course → shares the round pack → Al opens it, says who he is, picks Bob
+ * as the partner he's marking, scores Bob's 18 holes (drafts auto-sync),
+ * reviews and SUBMITS Bob's card → organiser keys Al's own card from paper,
+ * applies a penalty to Bob, completes the round → results and leaderboard
+ * match hand-computed values.
  *
- * Hand-computed expectations (daily h'caps 10, 6, 15):
- *   Al (10): all par on par-72 easy card, 1 stroke on SI 1-10 -> see below
- *   Bob (6): keyed card
- *   Cec (15): absent -> field average
+ * Hand-computed expectations (daily h'caps Al 10, Bob 6, Cec 15; all-par-4
+ * course, SI 1..18 in order):
+ *   Bob's card (marked by Al): all 4s -> 6 stroke holes x3 + 12 x2 = 42, pen 1 -> 41
+ *   Al's card (keyed by organiser): all 4s -> 10 x3 + 8 x2 = 46
+ *   Cec absent -> avg of (46, 42) = 44
  */
 const APP = "/Scoring/";
 
@@ -57,44 +60,54 @@ test("organiser → player → results round trip", async ({ browser }) => {
   const packUrl = await orgPage.getByTestId("share-url").inputValue();
   expect(packUrl).toContain("#/i/");
 
-  // --- player Al opens the pack and scores all 4s (gross par every hole)
+  // --- Al opens the pack, identifies himself, and marks Bob's card
   const player = await browser.newContext(PHONE);
   const playerPage = await player.newPage();
   await playerPage.goto(packUrl);
-  await playerPage.getByRole("button", { name: "That's me" }).first().click();
-  await playerPage.getByRole("button", { name: /Start my card/ }).click();
+  await playerPage.getByRole("button", { name: "That's me" }).first().click(); // Al
+  await playerPage.getByTestId("mark-1").click(); // marking Bob
+  await playerPage.getByTestId("open-card").click();
   for (let h = 1; h <= 18; h++) {
     // default shown score is par (4); just advance
     await expect(playerPage.getByTestId("score")).toHaveText("4");
+    if (h === 5) {
+      // Al also pencils his own tally on one hole
+      await playerPage.getByRole("button", { name: "my score one more" }).click();
+      await expect(playerPage.getByTestId("tally")).toContainText("4");
+    }
     if (h < 18) await playerPage.getByTestId("next-hole").click();
     else await playerPage.getByTestId("finish-card").click();
   }
-  // Al: h'cap 10 -> 1 stroke on SI 1-10: 10 holes x 3pts + 8 x 2pts = 46
-  await expect(playerPage.getByText("card synced ✓")).toBeVisible({ timeout: 20000 });
+  // review screen shows Bob's 42 points; nothing is official yet
+  await expect(playerPage.getByTestId("submit-total")).toHaveText("42 pts");
+  await expect(orgPage.getByTestId("card-list")).toContainText("draft", { timeout: 20000 });
 
-  // --- organiser sees Al's card arrive via the drop-box
-  await expect(orgPage.getByTestId("card-list")).toContainText("46 pts", { timeout: 20000 });
+  // Al fixes nothing and presses Submit — the card becomes official
+  await playerPage.getByTestId("submit-round").click();
+  await expect(playerPage.getByText("delivered ✓")).toBeVisible({ timeout: 20000 });
+  await expect(orgPage.getByTestId("card-list")).toContainText("submitted ✓", { timeout: 20000 });
+  await expect(orgPage.getByTestId("card-list")).toContainText("42 pts");
 
-  // organiser keys Bob's paper card: all 5s (one over par each hole)
+  // organiser keys Al's paper card: all 4s -> 46 pts
   await orgPage.getByRole("button", { name: "key card" }).first().click();
-  for (let h = 0; h < 18; h++) await orgPage.getByTestId(`mc-1-${h}`).fill("5");
-  await orgPage.getByTestId("mc-save-1").click();
-  // Bob: h'cap 6 -> 1 stroke SI 1-6: 6 x 2pts + 12 x 1pt = 24 pts, then pen -1 = 23
+  for (let h = 0; h < 18; h++) await orgPage.getByTestId(`mc-0-${h}`).fill("4");
+  await orgPage.getByTestId("mc-save-0").click();
+  // Bob cops a 1-point card penalty: 42 -> 41
   await orgPage.getByTestId("penalty-1").selectOption("1");
 
-  // --- complete round (Cec absent -> avg of 46 and 24 = 35)
+  // --- complete round (Cec absent -> avg of 46 and 42 = 44)
   orgPage.on("dialog", (d) => d.accept());
   await orgPage.getByTestId("complete-round").click();
 
   const results = orgPage.getByTestId("daily-results");
   await expect(results).toBeVisible();
   await expect(orgPage.getByTestId("net-0")).toHaveText("46"); // Al wins
-  await expect(orgPage.getByTestId("net-1")).toHaveText("23"); // Bob after penalty
-  await expect(orgPage.getByTestId("net-2")).toHaveText("35"); // Cec = field average
+  await expect(orgPage.getByTestId("net-1")).toHaveText("41"); // Bob after penalty
+  await expect(orgPage.getByTestId("net-2")).toHaveText("44"); // Cec = field average
   await expect(results).toContainText("absent");
   await expect(results).toContainText("pen");
 
-  // --- leaderboard: Al 1st (46), Cec 2nd (35), Bob 3rd (23)
+  // --- leaderboard: Al 1st (46), Cec 2nd (44), Bob 3rd (41)
   await orgPage.getByRole("link", { name: /‹ Round 1/ }).click();
   await orgPage.getByRole("link", { name: /‹ E2E Cup/ }).click();
   const lb = orgPage.getByTestId("leaderboard");
@@ -105,8 +118,12 @@ test("organiser → player → results round trip", async ({ browser }) => {
   await expect(rows.nth(1)).toContainText("Cec Charlie");
   await expect(rows.nth(2)).toContainText("Bob Bravo");
 
-  // player still sees only their own card — no comp anywhere
-  await expect(playerPage.getByText("Bob")).toHaveCount(0);
+  // Al's phone knows Bob (he marked him) but never sees the third player or the comp
+  await playerPage.goto(`${APP}#/player`);
+  await expect(playerPage.getByText("Cec")).toHaveCount(0);
+
+  // submitted card is locked on the player's phone
+  await expect(playerPage.getByText("Card submitted")).toBeVisible();
 });
 
 test("laptop organiser keys cards straight into the desk grid", async ({ browser }) => {

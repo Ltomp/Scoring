@@ -1,12 +1,11 @@
 import { JSX, useEffect } from "react";
 import { nav, useRoute } from "./router";
 import { decodePayload } from "./share/codec";
-import { mutate, playerCardKey, useAppState } from "./state/store";
-import { HOLES } from "./engine";
+import { emptyPlayerCard, mutate, playerCardKey, useAppState } from "./state/store";
 import { Home } from "./views/Home";
 import { PlayerHome } from "./views/player/PlayerHome";
 import { ScoreEntry } from "./views/player/ScoreEntry";
-import { HandIn } from "./views/player/HandIn";
+import { SubmitRound } from "./views/player/SubmitRound";
 import { OrgHome } from "./views/organiser/OrgHome";
 import { NewTrip } from "./views/organiser/NewTrip";
 import { TripHome } from "./views/organiser/TripHome";
@@ -33,7 +32,7 @@ export function App(): JSX.Element {
           }
           d.player.pack = payload;
           const k = playerCardKey(payload.tripId, payload.round);
-          if (!d.player.cards[k]) d.player.cards[k] = { scores: Array(HOLES).fill(0), syncedAt: null };
+          if (!d.player.cards[k]) d.player.cards[k] = emptyPlayerCard();
         });
         nav("/player");
       } else {
@@ -53,7 +52,7 @@ export function App(): JSX.Element {
           }
           if (payload.player < t.players.length) {
             r.cards[payload.player] = payload.scores;
-            r.cardMeta[payload.player] = { source: "link", updatedAt: Date.now() };
+            r.cardMeta[payload.player] = { source: "link", updatedAt: Date.now(), final: true };
           }
         });
         nav(`/org/t/${payload.tripId}/r/${payload.round}`);
@@ -68,7 +67,7 @@ export function App(): JSX.Element {
   let view: JSX.Element;
   if (p0 === "player") {
     if (p1 === "score") view = <ScoreEntry />;
-    else if (p1 === "handin") view = <HandIn />;
+    else if (p1 === "submit") view = <SubmitRound />;
     else view = <PlayerHome />;
   } else if (p0 === "org") {
     const trip = p1 === "t" && p2 ? state.trips.find((t) => t.id === p2) : undefined;

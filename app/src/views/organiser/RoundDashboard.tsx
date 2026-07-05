@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { mutate, Trip, useAppState } from "../../state/store";
+import { CardSource, mutate, Trip, useAppState } from "../../state/store";
 import { nav } from "../../router";
 import { HOLES, RoundResult } from "../../engine";
 import { shareUrl } from "../../share/codec";
@@ -34,7 +34,7 @@ export function RoundDashboard({ trip, round }: { trip: Trip; round: number }) {
             const remoteAt = Date.parse(row.updated_at);
             if (meta && meta.source !== "sync" && meta.updatedAt >= remoteAt) continue;
             rd.cards[row.player] = row.scores;
-            rd.cardMeta[row.player] = { source: "sync", updatedAt: remoteAt };
+            rd.cardMeta[row.player] = { source: "sync", updatedAt: remoteAt, final: row.done };
           }
         });
       } catch (e) {
@@ -70,10 +70,16 @@ export function RoundDashboard({ trip, round }: { trip: Trip; round: number }) {
     dropbox: trip.dropbox ? { ...trip.dropbox, writeKey: trip.writeKey } : null,
   });
 
+  const drafts = r.cardMeta.filter((m) => m && m.source === "sync" && !m.final).length;
   const setCompleted = async (completed: boolean) => {
-    if (completed && received < trip.players.length &&
-        !confirm(`${trip.players.length - received} player(s) have no card — they'll be scored as absent (field average). Complete the round?`)) {
-      return;
+    if (completed) {
+      const warnings = [
+        received < trip.players.length
+          ? `${trip.players.length - received} player(s) have no card — they'll be scored as absent (field average).`
+          : "",
+        drafts > 0 ? `${drafts} card(s) are still drafts — the marker hasn't pressed Submit.` : "",
+      ].filter(Boolean);
+      if (warnings.length && !confirm(`${warnings.join("\n")}\nComplete the round?`)) return;
     }
     mutate((d) => { d.trips.find((x) => x.id === trip.id)!.rounds[round - 1].completed = completed; });
     if (trip.dropbox) {
@@ -114,12 +120,12 @@ export function RoundDashboard({ trip, round }: { trip: Trip; round: number }) {
                   {p.name}
                   <div className="p-sub num">
                     {card
-                      ? `${rr.raw[i]} pts · ${holes}/18 holes${meta?.source === "manual" ? " · keyed" : meta?.source === "link" ? " · QR" : ""}`
+                      ? `${rr.raw[i]} pts · ${holes}/18 holes`
                       : r.completed ? `absent · avg ${rr.avg}` : "waiting…"}
                   </div>
                 </span>
                 {r.penalties[i] > 0 && <span className="chip pen">pen {r.penalties[i]}</span>}
-                {card ? <span className="chip ok">in</span> : <span className="chip mute">{r.completed ? "absent" : "waiting"}</span>}
+                <StatusChip meta={meta} hasCard={!!card} completed={r.completed} />
               </div>
               {!r.completed && (
                 <div className="row" style={{ width: "100%", justifyContent: "flex-end" }}>
@@ -234,9 +240,7 @@ function DeskGrid({ trip, round, rr, daily }: {
                       : <PenaltyPicker trip={trip} round={round} player={i} tid={`dg-pen-${i}`} />}
                   </td>
                   <td>
-                    {card
-                      ? <span className="chip ok">{meta?.source === "manual" ? "keyed" : meta?.source === "link" ? "QR" : "in"}</span>
-                      : <span className="chip mute">{locked ? "absent" : "waiting"}</span>}
+                    <StatusChip meta={meta} hasCard={!!card} completed={locked} />
                   </td>
                 </tr>
               );
@@ -250,6 +254,17 @@ function DeskGrid({ trip, round, rr, daily }: {
       </p>
     </div>
   );
+}
+
+function StatusChip({ meta, hasCard, completed }: {
+  meta: { source: CardSource; final?: boolean } | null; hasCard: boolean; completed: boolean;
+}) {
+  if (!hasCard) return <span className="chip mute">{completed ? "absent" : "waiting"}</span>;
+  if (meta?.source === "manual") return <span className="chip ok">keyed</span>;
+  if (meta?.source === "link") return <span className="chip ok">imported</span>;
+  return meta?.final
+    ? <span className="chip ok">submitted ✓</span>
+    : <span className="chip warn">draft</span>;
 }
 
 function Shell({ trip, round, children }: { trip: Trip; round: number; children: React.ReactNode }) {

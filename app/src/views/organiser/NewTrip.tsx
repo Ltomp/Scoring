@@ -40,7 +40,7 @@ export function NewTrip() {
         setBusy(false);
         setErr(
           `Couldn't reach the drop-box (${e instanceof Error ? e.message : e}). ` +
-          "Check the URL and key, or clear them to run QR-hand-in only.",
+          "Check the URL and key, or clear them to run without auto-delivery.",
         );
         return;
       }
@@ -82,8 +82,9 @@ export function NewTrip() {
           <div>
             <div className="label">Card drop-box (recommended)</div>
             <p className="hint">
-              Your free Supabase project — lets players' cards upload automatically.
-              One-time setup is in the README. Leave blank to run QR hand-in only.
+              Your free Supabase project — markers' cards deliver themselves when
+              submitted. One-time setup is in the README. Without it, organisers key
+              every card by hand.
             </p>
           </div>
           <label className="field"><span>Project URL</span>

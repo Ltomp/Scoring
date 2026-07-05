@@ -5,7 +5,7 @@ import { useSyncExternalStore } from "react";
  *   #/                     home
  *   #/player               player home (today)
  *   #/player/score         score entry
- *   #/player/handin        hand-in fallback
+ *   #/player/submit        review & submit the marked card
  *   #/org                  trips list
  *   #/org/new              new trip
  *   #/org/t/:id            trip home (rounds + leaderboard)

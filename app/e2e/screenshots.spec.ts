@@ -46,25 +46,32 @@ test("capture key screens @shots", async ({ browser }) => {
   const packUrl = await orgPage.getByTestId("share-url").inputValue();
   await orgPage.screenshot({ path: `${OUT}/6-share-pack.png` });
 
-  // player scores
+  // player (Tompkins) marks McEwan's card
   const player = await browser.newContext({ viewport: { width: 390, height: 760 } });
   const playerPage = await player.newPage();
   await playerPage.goto(packUrl);
-  await playerPage.getByRole("button", { name: "That's me" }).last().click();
-  await playerPage.getByRole("button", { name: /Start my card/ }).click();
+  await playerPage.getByRole("button", { name: "That's me" }).last().click(); // Tompkins
+  await playerPage.getByTestId("mark-4").click(); // marking McEwan
+  await playerPage.getByTestId("open-card").click();
   const card = [5, 4, 4, 6, 5, 3, 4, 7, 4, 5, 3, 6, 4, 5, 4, 4, 6, 5];
   for (let h = 0; h < 18; h++) {
     const delta = card[h] - [4, 4, 3, 5, 4, 3, 4, 5, 4, 4, 3, 5, 4, 4, 4, 3, 5, 4][h];
     const btn = delta > 0 ? "one more" : "one less";
     for (let i = 0; i < Math.abs(delta); i++)
-      await playerPage.getByRole("button", { name: btn }).click();
-    if (h === 7) await playerPage.screenshot({ path: `${OUT}/2-score-entry.png` });
+      await playerPage.getByRole("button", { name: btn, exact: true }).click();
+    if (h === 7) {
+      await playerPage.getByRole("button", { name: "my score one more" }).click();
+      await playerPage.getByRole("button", { name: "my score one more" }).click();
+      await playerPage.screenshot({ path: `${OUT}/2-score-entry.png` });
+    }
     if (h < 17) await playerPage.getByTestId("next-hole").click();
     else await playerPage.getByTestId("finish-card").click();
   }
+  await playerPage.getByTestId("submit-round").waitFor();
+  await playerPage.screenshot({ path: `${OUT}/4-submit.png`, fullPage: true });
+  await playerPage.getByTestId("submit-round").click();
+  await playerPage.goto(`${APP}#/player`);
   await playerPage.screenshot({ path: `${OUT}/3-player-today.png` });
-  await playerPage.goto(`${APP}#/player/handin`);
-  await playerPage.screenshot({ path: `${OUT}/4-handin.png` });
 
   // organiser dashboard with one card in + penalty
   await orgPage.getByTestId("share-pack").click(); // hide pack
