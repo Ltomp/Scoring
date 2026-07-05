@@ -1,2 +1,4 @@
 __pycache__/
 verify_failed.xlsx
+test-results/
+playwright-report/
