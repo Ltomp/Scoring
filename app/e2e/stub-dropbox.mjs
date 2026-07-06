@@ -48,7 +48,13 @@ export function startStubDropbox(port = 0) {
       if (fn === "gts_fetch_own_card") {
         if (!trip || trip.writeKey !== args.p_key) return send(401, { message: "bad trip or key" });
         const row = cards.get(`${args.p_trip}:${args.p_round}:${args.p_player}`);
-        return send(200, row ? [{ scores: row.scores, done: row.done, updated_at: row.updated_at }] : []);
+        const round_completed = completed.has(`${args.p_trip}:${args.p_round}`);
+        return send(200, [{
+          scores: row ? row.scores : null,
+          done: row ? row.done : null,
+          updated_at: row ? row.updated_at : null,
+          round_completed,
+        }]);
       }
       if (fn === "gts_fetch_cards") {
         if (!trip || trip.readKey !== args.p_key) return send(401, { message: "bad trip or key" });

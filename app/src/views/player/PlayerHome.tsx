@@ -2,13 +2,27 @@ import { useEffect, useState } from "react";
 import { emptyPlayerCard, mutate, playerCardKey, useAppState } from "../../state/store";
 import { nav } from "../../router";
 import { holePoints } from "../../engine";
+import { fetchOwnCard } from "../../sync/dropbox";
 import { onSyncStatus, SyncStatus } from "./playerSync";
 
 export function PlayerHome() {
   const { player } = useAppState();
   const [sync, setSync] = useState<SyncStatus>("synced");
+  const [roundLocked, setRoundLocked] = useState(false);
   useEffect(() => onSyncStatus(setSync), []);
   const pack = player.pack;
+  const my = player.myIndex;
+
+  // whether the organiser has already completed this round — once locked,
+  // starting or submitting a card here would only fail server-side, so
+  // don't offer to
+  useEffect(() => {
+    if (!pack?.dropbox || my == null) return;
+    fetchOwnCard(pack.dropbox, pack.tripId, pack.dropbox.writeKey, pack.round, my)
+      .then((r) => setRoundLocked(r.roundCompleted))
+      .catch(() => { /* stay optimistic; submit will still fail loudly if actually locked */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pack?.tripId, pack?.round, my]);
 
   if (!pack) {
     return (
@@ -27,7 +41,6 @@ export function PlayerHome() {
 
   const key = playerCardKey(pack.tripId, pack.round);
   const card = player.cards[key] ?? emptyPlayerCard();
-  const my = player.myIndex;
 
   if (my == null) {
     return (
@@ -127,6 +140,15 @@ export function PlayerHome() {
           </div>
           <button className="btn ghost" onClick={() => nav("/player/submit")}>Review submitted card</button>
         </>
+      ) : roundLocked ? (
+        <div className="card">
+          <div className="label">Round completed</div>
+          <p className="hint" style={{ fontSize: 13.5 }}>
+            Your organiser has already completed this round, so {firstName(partner.name)}'s
+            card can no longer be started or submitted here. If it's missing or wrong,
+            ask an organiser to key or correct it.
+          </p>
+        </div>
       ) : (
         <>
           <button className="btn" onClick={() => nav("/player/score")} data-testid="open-card">
@@ -143,9 +165,9 @@ export function PlayerHome() {
         <p className="hint">
           {submitted
             ? "See you on the tee tomorrow."
-            : "Nothing is final until you press Submit — fix mistakes any time before that."}
+            : roundLocked ? "" : "Nothing is final until you press Submit — fix mistakes any time before that."}
         </p>
-        {!submitted && (
+        {!submitted && !roundLocked && (
           <button
             className="btn small ghost"
             onClick={() => {

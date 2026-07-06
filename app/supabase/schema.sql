@@ -116,18 +116,23 @@ end $$;
 -- scores for any player; this just lets it read one card back the same
 -- way). Only ever returns the single (round, player) card asked for, never
 -- the whole field or the comp — organisers alone hold the read key.
+-- Always returns exactly one row (a left join against a dummy row), even
+-- if this player has no card yet, so round_completed still reaches the
+-- player's app in that case too — that's what tells their PlayerHome to
+-- stop offering to start/submit a card once the organiser has locked it.
 create or replace function public.gts_fetch_own_card(
   p_trip uuid, p_key text, p_round int, p_player int
-) returns table (scores jsonb, done boolean, updated_at timestamptz)
+) returns table (scores jsonb, done boolean, updated_at timestamptz, round_completed boolean)
 language plpgsql security definer set search_path = public as $$
 begin
   if not exists (select 1 from gts_trips t where t.id = p_trip and t.write_key = p_key) then
     raise exception 'bad trip or key';
   end if;
   return query
-    select c.scores, c.done, c.updated_at
-    from gts_cards c
-    where c.trip_id = p_trip and c.round = p_round and c.player = p_player;
+    select c.scores, c.done, c.updated_at,
+           exists (select 1 from gts_completed g where g.trip_id = p_trip and g.round = p_round)
+    from (select 1) as one_row
+    left join gts_cards c on c.trip_id = p_trip and c.round = p_round and c.player = p_player;
 end $$;
 
 -- Called by the organiser app to collect cards.

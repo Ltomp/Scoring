@@ -474,3 +474,60 @@ test("a player can review their own scores read-only, as recorded by their marke
   await expect(benPage.getByText("Submitted by your marker")).toBeVisible();
   await expect(benPage.locator(".hs.done").first()).toContainText("4"); // Amy keyed par (4) on every hole
 });
+
+/**
+ * The point of this test: once an organiser completes a round, a player who
+ * hasn't submitted yet should see that plainly instead of a "Start card"
+ * button that would only fail once tapped through — since gts_submit_card
+ * rejects writes for a completed round.
+ */
+test("PlayerHome hides start/continue/submit once the organiser completes the round", async ({ browser }) => {
+  test.setTimeout(60000);
+  const stub = await startStubDropbox();
+
+  const org = await browser.newContext({ viewport: { width: 390, height: 760 } });
+  const orgPage = await org.newPage();
+  orgPage.on("dialog", (d) => d.accept());
+  await orgPage.goto(`${APP}#/org`);
+  await orgPage.getByTestId("new-trip").click();
+  await orgPage.getByTestId("trip-name").fill("Locked Cup");
+  await orgPage.getByRole("button", { name: /Use my own/ }).click();
+  await orgPage.getByTestId("dropbox-url").fill(stub.url);
+  await orgPage.getByTestId("dropbox-key").fill("stub-key");
+  await orgPage.getByTestId("create-trip").click();
+
+  for (const [name, hcap] of [["Amy Archer", "8"], ["Ben Baxter", "12"]] as const) {
+    await orgPage.getByTestId("player-name").fill(name);
+    await orgPage.getByTestId("player-hcap").fill(hcap);
+    await orgPage.getByTestId("add-player").click();
+  }
+  await orgPage.getByTestId("add-round").click();
+  await orgPage.getByTestId("course-name-0").fill("Locked Links");
+  await orgPage.getByTestId("course-paste-0").fill(
+    `${Array(18).fill(4).join(" ")}\n${Array.from({ length: 18 }, (_, i) => i + 1).join(" ")}`,
+  );
+  await orgPage.getByTestId("course-save-0").click();
+  await orgPage.getByTestId("setup-done").click();
+
+  await orgPage.getByRole("button", { name: /^Round 1 / }).click();
+  await orgPage.getByTestId("share-pack").click();
+  const packUrl = await orgPage.getByTestId("share-url").inputValue();
+
+  // ---- Amy opens the pack, picks who she's marking, but never starts the card
+  const amy = await browser.newContext({ viewport: { width: 390, height: 760 } });
+  const amyPage = await amy.newPage();
+  await amyPage.goto(packUrl);
+  await amyPage.getByRole("button", { name: "That's me" }).nth(0).click();
+  await amyPage.getByTestId("mark-1").click();
+  await expect(amyPage.getByTestId("open-card")).toBeVisible();
+
+  // ---- organiser completes the round with nobody's card in yet
+  await orgPage.getByTestId("complete-round").click();
+  await expect(orgPage).toHaveURL(/\/results$/);
+
+  // ---- Amy reopens the app: start/submit are gone, replaced with a locked notice
+  await amyPage.reload();
+  await expect(amyPage.getByText("Round completed")).toBeVisible({ timeout: 20000 });
+  await expect(amyPage.getByTestId("open-card")).not.toBeVisible();
+  await expect(amyPage.getByTestId("review-submit")).not.toBeVisible();
+});
