@@ -354,3 +354,123 @@ async function accessUrlFor(page: import("@playwright/test").Page): Promise<stri
   await page.getByRole("button", { name: /Access this trip on another device/ }).click();
   return page.getByTestId("share-url").inputValue();
 }
+
+/**
+ * The point of this test: organisers are the final authority and must be
+ * able to correct a card at any time, even after "Complete round" locks it
+ * for players/markers — and that correction has to actually reach other
+ * devices, not just this one.
+ */
+test("an organiser can still correct a card after completing the round, and it syncs elsewhere", async ({ browser }) => {
+  test.setTimeout(60000);
+  const stub = await startStubDropbox();
+
+  const dev1 = await browser.newContext({ viewport: { width: 390, height: 760 } });
+  const page1 = await dev1.newPage();
+  await page1.goto(`${APP}#/org`);
+  await page1.getByTestId("new-trip").click();
+  await page1.getByTestId("trip-name").fill("Correction Cup");
+  await page1.getByRole("button", { name: /Use my own/ }).click();
+  await page1.getByTestId("dropbox-url").fill(stub.url);
+  await page1.getByTestId("dropbox-key").fill("stub-key");
+  await page1.getByTestId("create-trip").click();
+
+  await page1.getByTestId("player-name").fill("Gail Gordon");
+  await page1.getByTestId("player-hcap").fill("11");
+  await page1.getByTestId("add-player").click();
+
+  await page1.getByTestId("add-round").click();
+  await page1.getByTestId("course-name-0").fill("Correction Links");
+  await page1.getByTestId("course-paste-0").fill(
+    `${Array(18).fill(4).join(" ")}\n${Array.from({ length: 18 }, (_, i) => i + 1).join(" ")}`,
+  );
+  await page1.getByTestId("course-save-0").click();
+  await page1.getByTestId("setup-done").click();
+  const tripId = page1.url().match(/\/org\/t\/([^/]+)/)![1];
+
+  await page1.getByRole("button", { name: /^Round 1 / }).click();
+  await page1.getByRole("button", { name: "key card" }).first().click();
+  for (let h = 0; h < 18; h++) await page1.getByTestId(`mc-0-${h}`).fill("4");
+  await page1.getByTestId("mc-save-0").click();
+  await expect(page1.getByTestId("card-list")).toContainText("47 pts"); // 11 holes x 3pts + 7 holes x 2pts
+  await page1.getByTestId("complete-round").click();
+  await expect(page1).toHaveURL(/\/results$/);
+
+  // ---- back on the round, "edit card" is still there even though it's completed
+  await page1.goto(`${APP}#/org/t/${tripId}/r/1`);
+  await expect(page1.getByRole("button", { name: "edit card" })).toBeVisible();
+  await page1.getByRole("button", { name: "edit card" }).click();
+  await page1.getByTestId("mc-0-0").fill("5"); // hole 1 (SI 1): one worse -> 47 becomes 46
+  await page1.getByTestId("mc-save-0").click();
+  await expect(page1.getByTestId("card-list")).toContainText("46 pts");
+
+  // ---- a second device sees the correction, not the original 47
+  await page1.goto(`${APP}#/org/t/${tripId}`);
+  const dev2 = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page2 = await dev2.newPage();
+  await page2.goto(await accessUrlFor(page1));
+  await page2.getByRole("button", { name: /^Round 1 / }).click();
+  await expect(page2.getByTestId("dg-pts-0")).toHaveText("46", { timeout: 20000 });
+});
+
+/**
+ * The point of this test: a player can review their OWN official card
+ * (the one their marking partner is keeping for them) read-only, straight
+ * from the drop-box — without ever gaining access to anyone else's card or
+ * the comp. This is distinct from their private "tally", which never
+ * leaves their own phone.
+ */
+test("a player can review their own scores read-only, as recorded by their marker", async ({ browser }) => {
+  test.setTimeout(60000);
+  const stub = await startStubDropbox();
+
+  const org = await browser.newContext({ viewport: { width: 390, height: 760 } });
+  const orgPage = await org.newPage();
+  await orgPage.goto(`${APP}#/org`);
+  await orgPage.getByTestId("new-trip").click();
+  await orgPage.getByTestId("trip-name").fill("Review Cup");
+  await orgPage.getByRole("button", { name: /Use my own/ }).click();
+  await orgPage.getByTestId("dropbox-url").fill(stub.url);
+  await orgPage.getByTestId("dropbox-key").fill("stub-key");
+  await orgPage.getByTestId("create-trip").click();
+
+  for (const [name, hcap] of [["Amy Archer", "8"], ["Ben Baxter", "12"]] as const) {
+    await orgPage.getByTestId("player-name").fill(name);
+    await orgPage.getByTestId("player-hcap").fill(hcap);
+    await orgPage.getByTestId("add-player").click();
+  }
+  await orgPage.getByTestId("add-round").click();
+  await orgPage.getByTestId("course-name-0").fill("Review Links");
+  await orgPage.getByTestId("course-paste-0").fill(
+    `${Array(18).fill(4).join(" ")}\n${Array.from({ length: 18 }, (_, i) => i + 1).join(" ")}`,
+  );
+  await orgPage.getByTestId("course-save-0").click();
+  await orgPage.getByTestId("setup-done").click();
+
+  await orgPage.getByRole("button", { name: /^Round 1 / }).click();
+  await orgPage.getByTestId("share-pack").click();
+  const packUrl = await orgPage.getByTestId("share-url").inputValue();
+
+  // ---- Amy marks Ben, keys every hole at par, submits
+  const amy = await browser.newContext({ viewport: { width: 390, height: 760 } });
+  const amyPage = await amy.newPage();
+  await amyPage.goto(packUrl);
+  await amyPage.getByRole("button", { name: "That's me" }).nth(0).click();
+  await amyPage.getByTestId("mark-1").click(); // marking Ben
+  await amyPage.getByTestId("open-card").click();
+  for (let h = 1; h <= 17; h++) await amyPage.getByTestId("next-hole").click();
+  await amyPage.getByTestId("finish-card").click();
+  await amyPage.getByTestId("submit-round").click();
+
+  // ---- Ben opens the same pack and reviews HIS OWN scores, read-only
+  const ben = await browser.newContext({ viewport: { width: 390, height: 760 } });
+  const benPage = await ben.newPage();
+  await benPage.goto(packUrl);
+  await benPage.getByRole("button", { name: "That's me" }).nth(1).click();
+  await benPage.getByTestId("mark-0").click(); // Ben marks Amy — irrelevant to this test
+  await benPage.getByTestId("review-mine").click();
+
+  await expect(benPage.getByText(/pts$/)).toBeVisible({ timeout: 20000 });
+  await expect(benPage.getByText("Submitted by your marker")).toBeVisible();
+  await expect(benPage.locator(".hs.done").first()).toContainText("4"); // Amy keyed par (4) on every hole
+});

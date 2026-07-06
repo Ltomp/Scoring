@@ -3,8 +3,8 @@ import { CardSource, mutate, Trip, useAppState } from "../../state/store";
 import { nav } from "../../router";
 import { HOLES, RoundResult } from "../../engine";
 import { shareUrl } from "../../share/codec";
-import { completeRound, submitCard } from "../../sync/dropbox";
-import { fetchAndMergeCards } from "../../state/cardSync";
+import { completeRound, organiserSubmitCard } from "../../sync/dropbox";
+import { fetchAndMergeCards, pushOrganiserCard } from "../../state/cardSync";
 import { pullTripMeta, pushTripMeta } from "../../state/tripSync";
 import { ShareSheet } from "../../components/ShareSheet";
 import { orgCompute } from "./orgCompute";
@@ -17,12 +17,11 @@ export function RoundDashboard({ trip, round }: { trip: Trip; round: number }) {
   const [pollErr, setPollErr] = useState("");
 
   // collect cards AND any co-organiser's setup/penalty/completion changes
-  // while the round is open. A completed round with cards already on this
-  // device stops polling (it's locked) — but one that arrived already
-  // completed via trip-meta sync with no local cards yet still needs a
-  // fetch, or its scores would never show up here.
+  // while the round is open. Keeps polling even after completion — an
+  // organiser correction to a locked round on another device still needs
+  // to reach this one (see pushOrganiserCard/gts_organiser_submit_card).
   useEffect(() => {
-    if (!trip.dropbox || !r || (r.completed && r.cards.some(Boolean))) return;
+    if (!trip.dropbox || !r) return;
     let stop = false;
     const poll = async () => {
       try {
@@ -36,7 +35,7 @@ export function RoundDashboard({ trip, round }: { trip: Trip; round: number }) {
     const id = setInterval(poll, 8000);
     return () => { stop = true; clearInterval(id); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trip.id, round, r?.completed, !!trip.dropbox]);
+  }, [trip.id, round, !!trip.dropbox]);
 
   if (!r) { nav(`/org/t/${trip.id}`); return null; }
 
@@ -119,15 +118,13 @@ export function RoundDashboard({ trip, round }: { trip: Trip; round: number }) {
                 {r.penalties[i] > 0 && <span className="chip pen">pen {r.penalties[i]}</span>}
                 <StatusChip meta={meta} hasCard={!!card} completed={r.completed} />
               </div>
-              {!r.completed && (
-                <div className="row" style={{ width: "100%", justifyContent: "flex-end" }}>
-                  <PenaltyPicker trip={trip} round={round} player={i} />
-                  <button className="btn small ghost" onClick={() => setManualFor(manualFor === i ? null : i)}>
-                    {card ? "edit card" : "key card"}
-                  </button>
-                </div>
-              )}
-              {manualFor === i && !r.completed && (
+              <div className="row" style={{ width: "100%", justifyContent: "flex-end" }}>
+                <PenaltyPicker trip={trip} round={round} player={i} />
+                <button className="btn small ghost" onClick={() => setManualFor(manualFor === i ? null : i)}>
+                  {card ? "edit card" : "key card"}
+                </button>
+              </div>
+              {manualFor === i && (
                 <ManualCard trip={trip} round={round} player={i} onDone={() => setManualFor(null)} />
               )}
             </div>
@@ -167,6 +164,7 @@ function DeskGrid({ trip, round, rr, daily }: {
       rd.cards[p] = card;
       rd.cardMeta[p] = { source: "manual", updatedAt: Date.now() };
     });
+    pushOrganiserCard(trip, round, p); // keyed here always wins locally; this syncs it too, even once completed
   };
   const gross = (p: number, from: number, to: number) => {
     const card = r.cards[p];
@@ -209,7 +207,6 @@ function DeskGrid({ trip, round, rr, daily }: {
                       <input
                         aria-label={`${p.name} hole ${h + 1}`}
                         inputMode="numeric"
-                        disabled={locked}
                         value={card?.[h] || ""}
                         placeholder="·"
                         onChange={(e) => setScore(i, h, e.target.value)}
@@ -227,9 +224,7 @@ function DeskGrid({ trip, round, rr, daily }: {
                   <td className="sum num">{gross(i, 0, 18)}</td>
                   <td className="sum num" data-testid={`dg-pts-${i}`}>{card ? rr.raw[i] : locked ? rr.avg : ""}</td>
                   <td style={{ padding: 1 }}>
-                    {locked
-                      ? (r.penalties[i] ? `−${r.penalties[i]}` : "")
-                      : <PenaltyPicker trip={trip} round={round} player={i} tid={`dg-pen-${i}`} />}
+                    <PenaltyPicker trip={trip} round={round} player={i} tid={`dg-pen-${i}`} />
                   </td>
                   <td>
                     <StatusChip meta={meta} hasCard={!!card} completed={locked} />
@@ -242,7 +237,8 @@ function DeskGrid({ trip, round, rr, daily }: {
       </div>
       <p className="hint" style={{ marginBottom: 0 }}>
         Type straight into the grid to key a paper card — keyed cards beat auto-synced
-        ones. Blank cell = wipe (0 points).
+        ones, and you can still correct one here even after completing the round.
+        Blank cell = wipe (0 points).
       </p>
     </div>
   );
@@ -309,9 +305,10 @@ function ManualCard({ trip, round, player, onDone }: { trip: Trip; round: number
       rd.cards[player] = scores;
       rd.cardMeta[player] = { source: "manual", updatedAt: Date.now(), final: true };
     });
-    // so a paper card keyed on one device shows up on any other organiser device too
+    // so a paper card keyed on one device shows up on any other organiser device too —
+    // organiserSubmitCard (not submitCard) so this still works after the round is completed
     if (trip.dropbox) {
-      submitCard(trip.dropbox, trip.id, trip.writeKey, round, player, trip.players[player]?.name ?? "", scores, true)
+      organiserSubmitCard(trip.dropbox, trip.id, trip.readKey, round, player, trip.players[player]?.name ?? "", scores, true)
         .catch(() => { /* stays correct locally; will retry via the next fetch's local-wins rule */ });
     }
     onDone();

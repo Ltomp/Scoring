@@ -1,5 +1,5 @@
-import { fetchCards } from "../sync/dropbox";
-import { mutate, Trip } from "./store";
+import { createOutbox, fetchCards, organiserSubmitCard } from "../sync/dropbox";
+import { getState, mutate, Trip } from "./store";
 
 /**
  * Pull this round's cards from the drop-box and merge them in — shared by
@@ -9,23 +9,19 @@ import { mutate, Trip } from "./store";
  *
  * Merge rule: a locally keyed/imported card always wins (an organiser
  * correction shouldn't be clobbered by a stale remote read); otherwise the
- * newer update wins.
- *
- * A completed round with cards already on this device stops fetching (it's
- * locked, no need to keep polling) — but a round that arrives already
- * completed via trip-meta sync (discovery, or connecting a drop-box to a
- * trip after the fact) with NO local cards yet must still be fetched at
- * least once, or its scores would never appear on this device at all.
+ * newer update wins. This keeps fetching even once a round is completed —
+ * organisers can correct a card at any time (see pushOrganiserCard below),
+ * so another device's edit still needs to reach this one.
  */
 export async function fetchAndMergeCards(trip: Trip, round: number): Promise<void> {
   if (!trip.dropbox) return;
   const r = trip.rounds[round - 1];
-  if (!r || (r.completed && r.cards.some(Boolean))) return;
+  if (!r) return;
   const rows = await fetchCards(trip.dropbox, trip.id, trip.readKey, round);
   mutate((d) => {
     const t = d.trips.find((x) => x.id === trip.id)!;
     const rd = t.rounds[round - 1];
-    if (!rd || (rd.completed && rd.cards.some(Boolean))) return;
+    if (!rd) return;
     for (const row of rows) {
       if (row.player >= t.players.length) continue;
       const meta = rd.cardMeta[row.player];
@@ -44,4 +40,36 @@ export async function fetchAndMergeAllCards(trip: Trip): Promise<void> {
   await Promise.all(
     trip.rounds.map((r, i) => (r.course ? fetchAndMergeCards(trip, i + 1) : Promise.resolve())),
   );
+}
+
+/**
+ * Debounced push of one player's card as an organiser correction — works
+ * at any time, including after the round is completed (unlike the
+ * player/marker submitCard path). Used by the desk grid's live per-cell
+ * edits; ManualCard's explicit Save button pushes directly instead since
+ * it's already a deliberate one-shot action.
+ */
+const organiserOutboxes = new Map<string, ReturnType<typeof createOutbox>>();
+
+export function pushOrganiserCard(trip: Trip, round: number, player: number): void {
+  if (!trip.dropbox) return;
+  const key = `${trip.id}:${round}:${player}`;
+  let ob = organiserOutboxes.get(key);
+  if (!ob) {
+    ob = createOutbox({
+      async send() {
+        const t = getState().trips.find((x) => x.id === trip.id);
+        const rd = t?.rounds[round - 1];
+        const card = rd?.cards[player];
+        if (!t?.dropbox || !card) return;
+        await organiserSubmitCard(
+          t.dropbox, t.id, t.readKey, round, player,
+          t.players[player]?.name ?? "", card, rd!.cardMeta[player]?.final ?? rd!.completed,
+        );
+      },
+      onStatus: () => {},
+    });
+    organiserOutboxes.set(key, ob);
+  }
+  ob.push();
 }

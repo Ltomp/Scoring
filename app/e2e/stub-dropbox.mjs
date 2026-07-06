@@ -37,6 +37,19 @@ export function startStubDropbox(port = 0) {
         });
         return send(204);
       }
+      if (fn === "gts_organiser_submit_card") {
+        if (!trip || trip.readKey !== args.p_key) return send(401, { message: "bad trip or key" });
+        cards.set(`${args.p_trip}:${args.p_round}:${args.p_player}`, {
+          round: args.p_round, player: args.p_player, name: args.p_name,
+          scores: args.p_scores, done: args.p_done, updated_at: new Date().toISOString(),
+        });
+        return send(204);
+      }
+      if (fn === "gts_fetch_own_card") {
+        if (!trip || trip.writeKey !== args.p_key) return send(401, { message: "bad trip or key" });
+        const row = cards.get(`${args.p_trip}:${args.p_round}:${args.p_player}`);
+        return send(200, row ? [{ scores: row.scores, done: row.done, updated_at: row.updated_at }] : []);
+      }
       if (fn === "gts_fetch_cards") {
         if (!trip || trip.readKey !== args.p_key) return send(401, { message: "bad trip or key" });
         const rows = [...cards.entries()]

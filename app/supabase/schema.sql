@@ -4,9 +4,14 @@
 -- Privacy model: the tables are completely inaccessible to the public anon
 -- key (RLS enabled, no policies). ALL access goes through the SECURITY
 -- DEFINER functions below, which check the trip's write/read keys:
---   * players hold only the write key -> can submit their own card, can
---     never read anything back
---   * organisers hold the read key -> can read cards and manage rounds
+--   * players hold only the write key -> can submit their own card, and
+--     can read back only their own single card via gts_fetch_own_card
+--     (never the whole field or the comp)
+--   * organisers hold the read key -> can read every card and manage
+--     rounds, and can correct a card via gts_organiser_submit_card at any
+--     time, even after the round is completed (players/markers are
+--     locked out of gts_submit_card once a round is completed; only an
+--     organiser correction bypasses that)
 --   * gts_list_trips is the one deliberate exception: it takes no key at
 --     all, so #/org can auto-discover every trip on this project. Anyone
 --     who can reach this project (i.e. has this URL + anon key) can see
@@ -82,6 +87,47 @@ begin
   on conflict (trip_id, round, player) do update
     set name = excluded.name, scores = excluded.scores,
         done = excluded.done, updated_at = now();
+end $$;
+
+-- Called by the organiser app to key/correct a card directly — unlike
+-- gts_submit_card, this is NOT blocked once the round is completed, since
+-- an organiser is the final authority and needs to be able to fix a card
+-- at any time. Read-key gated (organiser only), never used by players.
+create or replace function public.gts_organiser_submit_card(
+  p_trip uuid, p_key text, p_round int, p_player int,
+  p_name text, p_scores jsonb, p_done boolean
+) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not exists (select 1 from gts_trips t where t.id = p_trip and t.read_key = p_key) then
+    raise exception 'bad trip or key';
+  end if;
+  insert into gts_cards (trip_id, round, player, name, scores, done, updated_at)
+  values (p_trip, p_round, p_player, p_name, p_scores, p_done, now())
+  on conflict (trip_id, round, player) do update
+    set name = excluded.name, scores = excluded.scores,
+        done = excluded.done, updated_at = now();
+end $$;
+
+-- Called by a player's own device to review their own scores, read-only —
+-- write-key gated like gts_submit_card (a marker's phone already holds the
+-- same trip-wide write key regardless of which player it's acting for, so
+-- this doesn't weaken anything: any write-key holder could already submit
+-- scores for any player; this just lets it read one card back the same
+-- way). Only ever returns the single (round, player) card asked for, never
+-- the whole field or the comp — organisers alone hold the read key.
+create or replace function public.gts_fetch_own_card(
+  p_trip uuid, p_key text, p_round int, p_player int
+) returns table (scores jsonb, done boolean, updated_at timestamptz)
+language plpgsql security definer set search_path = public as $$
+begin
+  if not exists (select 1 from gts_trips t where t.id = p_trip and t.write_key = p_key) then
+    raise exception 'bad trip or key';
+  end if;
+  return query
+    select c.scores, c.done, c.updated_at
+    from gts_cards c
+    where c.trip_id = p_trip and c.round = p_round and c.player = p_player;
 end $$;
 
 -- Called by the organiser app to collect cards.
@@ -175,6 +221,8 @@ revoke all on public.gts_trips, public.gts_cards, public.gts_completed, public.g
 grant execute on function
   public.gts_register_trip(uuid, text, text),
   public.gts_submit_card(uuid, text, int, int, text, jsonb, boolean),
+  public.gts_organiser_submit_card(uuid, text, int, int, text, jsonb, boolean),
+  public.gts_fetch_own_card(uuid, text, int, int),
   public.gts_fetch_cards(uuid, text, int),
   public.gts_complete_round(uuid, text, int, boolean),
   public.gts_save_trip_state(uuid, text, jsonb),

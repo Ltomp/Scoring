@@ -16,8 +16,10 @@ players and 10 rounds per trip; multi-trip with archive.
   **organiser's phone**; each player's phone holds only the card they're
   marking (their partner's) plus their own private tally.
 - Cards move through a **drop-box**: a free Supabase project where markers'
-  phones upload cards (write-only key) and only the organiser's read-key
-  can fetch them. No accounts for anyone; keys travel inside the share links.
+  phones upload cards (write key) and only the organiser's read-key can
+  fetch the whole field — a marker's write key can also read back just
+  their own single card, to check it, never anyone else's. No accounts for
+  anyone; keys travel inside the share links.
 - During the round, the partner's card streams up as a **draft** so
   organisers can watch progress; pressing **Submit round** (after checking
   it with the partner, like signing a paper card) marks it official and
@@ -64,8 +66,10 @@ the whole of `supabase/schema.sql` in again — every statement is
 idempotent (`create table if not exists`, `create or replace function`), so
 re-running it is safe and just adds the newer tables/functions (currently
 `gts_trip_state` and the RPCs that sync roster/courses/penalties across
-devices, plus `gts_list_trips`/`gts_delete_trip` that power automatic trip
-discovery on `#/org`) without touching your existing trips or cards.
+devices; `gts_list_trips`/`gts_delete_trip` that power automatic trip
+discovery on `#/org`; and `gts_organiser_submit_card`/`gts_fetch_own_card`
+that let organisers correct a card at any time and let a player read back
+their own card) without touching your existing trips or cards.
 
 ## Trip flow
 
@@ -128,9 +132,16 @@ lives at `https://<owner>.github.io/Scoring/`.
 ## Trust model & limits
 
 - A marker sees the card they keep — their playing partner's — exactly as
-  on paper. Nobody sees the comp except organisers.
+  on paper. Nobody sees the comp except organisers. A player can also pull
+  up their own card read-only, straight from the drop-box — never anyone
+  else's, never the leaderboard — to check what their marker has entered
+  for them; only an organiser can actually change it.
 - Marker pairs should cover the field (A marks B, B marks A, and so on);
   organisers can key a card for anyone left unmarked.
+- Organisers can correct a card at any time, including after **Complete
+  round** locks it for players — a marker can't alter their submission
+  once the round's locked, but an organiser's fix always goes through and
+  reaches every other device.
 - **`#/org` auto-discovers every trip on a drop-box project, not just ones
   you were given a link for.** This is deliberate, so organiser devices
   never need a manual handshake — but it means anyone who can reach a
