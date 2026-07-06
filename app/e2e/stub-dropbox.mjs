@@ -31,6 +31,8 @@ export function startStubDropbox(port = 0) {
       if (fn === "gts_submit_card") {
         if (!trip || trip.writeKey !== args.p_key) return send(401, { message: "bad trip or key" });
         if (completed.has(`${args.p_trip}:${args.p_round}`)) return send(409, { message: "round completed" });
+        const existing = cards.get(`${args.p_trip}:${args.p_round}:${args.p_player}`);
+        if (existing?.done) return send(409, { message: "card already finalised" });
         cards.set(`${args.p_trip}:${args.p_round}:${args.p_player}`, {
           round: args.p_round, player: args.p_player, name: args.p_name,
           scores: args.p_scores, done: args.p_done, updated_at: new Date().toISOString(),

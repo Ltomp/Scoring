@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { emptyPlayerCard, mutate, playerCardKey, useAppState } from "../../state/store";
 import { nav } from "../../router";
 import { holePoints } from "../../engine";
-import { fetchOwnCard } from "../../sync/dropbox";
+import { fetchOwnCard, RemoteOwnCard } from "../../sync/dropbox";
 import { onSyncStatus, SyncStatus } from "./playerSync";
 
 export function PlayerHome() {
@@ -73,11 +73,28 @@ export function PlayerHome() {
                 <button
                   className="btn small"
                   data-testid={`mark-${i}`}
-                  onClick={() => mutate((d) => {
-                    const c = d.player.cards[key] ?? emptyPlayerCard();
-                    c.markIndex = i;
-                    d.player.cards[key] = c;
-                  })}
+                  onClick={async () => {
+                    // this player may already have a card on the drop-box — an
+                    // organiser's manual key-in, or another marker's earlier
+                    // submission — so fetch it before starting a blank one,
+                    // otherwise a fresh Array(18).fill(0) would silently
+                    // overwrite real scores on submit
+                    let remote: RemoteOwnCard | null = null;
+                    if (pack.dropbox) {
+                      try {
+                        remote = await fetchOwnCard(pack.dropbox, pack.tripId, pack.dropbox.writeKey, pack.round, i);
+                      } catch { /* offline or unreachable; fall back to a blank card */ }
+                    }
+                    mutate((d) => {
+                      const c = d.player.cards[key] ?? emptyPlayerCard();
+                      c.markIndex = i;
+                      if (remote?.scores) {
+                        c.scores = remote.scores;
+                        if (remote.done) c.submittedAt = remote.updatedAt ? Date.parse(remote.updatedAt) : Date.now();
+                      }
+                      d.player.cards[key] = c;
+                    });
+                  }}
                 >
                   Marking them
                 </button>

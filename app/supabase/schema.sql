@@ -12,6 +12,11 @@
 --     time, even after the round is completed (players/markers are
 --     locked out of gts_submit_card once a round is completed; only an
 --     organiser correction bypasses that)
+--   * gts_submit_card also refuses to touch a card that's already marked
+--     done (finalised) — whether by an organiser's manual key-in or an
+--     earlier marker submission — so a stale/blank draft from the
+--     player-side flow can never clobber it; only gts_organiser_submit_card
+--     can amend a finalised card
 --   * gts_list_trips is the one deliberate exception: it takes no key at
 --     all, so #/org can auto-discover every trip on this project. Anyone
 --     who can reach this project (i.e. has this URL + anon key) can see
@@ -81,6 +86,12 @@ begin
   end if;
   if exists (select 1 from gts_completed c where c.trip_id = p_trip and c.round = p_round) then
     raise exception 'round completed';
+  end if;
+  if exists (
+    select 1 from gts_cards c
+    where c.trip_id = p_trip and c.round = p_round and c.player = p_player and c.done
+  ) then
+    raise exception 'card already finalised';
   end if;
   insert into gts_cards (trip_id, round, player, name, scores, done, updated_at)
   values (p_trip, p_round, p_player, p_name, p_scores, p_done, now())
