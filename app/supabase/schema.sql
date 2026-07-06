@@ -131,6 +131,11 @@ end $$;
 -- if this player has no card yet, so round_completed still reaches the
 -- player's app in that case too — that's what tells their PlayerHome to
 -- stop offering to start/submit a card once the organiser has locked it.
+-- Dropped first: Postgres refuses `create or replace` when a TABLE-returning
+-- function's output columns change shape (this one gained round_completed
+-- after some projects already had an older version), so a plain replace
+-- isn't actually idempotent for it the way it is for void-returning functions.
+drop function if exists public.gts_fetch_own_card(uuid, text, int, int);
 create or replace function public.gts_fetch_own_card(
   p_trip uuid, p_key text, p_round int, p_player int
 ) returns table (scores jsonb, done boolean, updated_at timestamptz, round_completed boolean)
@@ -147,6 +152,7 @@ begin
 end $$;
 
 -- Called by the organiser app to collect cards.
+drop function if exists public.gts_fetch_cards(uuid, text, int);
 create or replace function public.gts_fetch_cards(
   p_trip uuid, p_key text, p_round int default null
 ) returns table (round int, player int, name text, scores jsonb, done boolean, updated_at timestamptz)
@@ -194,6 +200,7 @@ begin
 end $$;
 
 -- Called when opening a trip (or an "organiser access" link on a new device).
+drop function if exists public.gts_load_trip_state(uuid, text);
 create or replace function public.gts_load_trip_state(
   p_trip uuid, p_key text
 ) returns table (state jsonb, updated_at timestamptz)
@@ -211,6 +218,7 @@ end $$;
 -- the README's "Trust model & limits" section. Isolation is still per
 -- project: a trip on someone's own Supabase project is only listable by
 -- whoever that organiser has given the project's URL/key to.
+drop function if exists public.gts_list_trips();
 create or replace function public.gts_list_trips()
 returns table (id uuid, write_key text, read_key text, state jsonb, updated_at timestamptz)
 language sql security definer set search_path = public as $$

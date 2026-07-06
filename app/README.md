@@ -62,14 +62,18 @@ Want your own project instead (or none at all)? On **New trip**, click
    then key every card by hand).
 
 Already running your own project from an earlier version of this app? Paste
-the whole of `supabase/schema.sql` in again — every statement is
-idempotent (`create table if not exists`, `create or replace function`), so
-re-running it is safe and just adds the newer tables/functions (currently
-`gts_trip_state` and the RPCs that sync roster/courses/penalties across
-devices; `gts_list_trips`/`gts_delete_trip` that power automatic trip
-discovery on `#/org`; and `gts_organiser_submit_card`/`gts_fetch_own_card`
-that let organisers correct a card at any time and let a player read back
-their own card) without touching your existing trips or cards.
+the whole of `supabase/schema.sql` in again — it's safe to re-run and just
+adds the newer tables/functions (currently `gts_trip_state` and the RPCs
+that sync roster/courses/penalties across devices; `gts_list_trips`/
+`gts_delete_trip` that power automatic trip discovery on `#/org`; and
+`gts_organiser_submit_card`/`gts_fetch_own_card` that let organisers
+correct a card at any time and let a player read back their own card)
+without touching your existing trips or cards. Table-returning functions
+whose output columns have changed shape over time (e.g. `gts_fetch_own_card`
+gaining `round_completed`) are dropped and recreated explicitly in the
+script, since Postgres refuses a plain `create or replace` in that case —
+if you ever hit a `cannot change return type` error re-running an older
+copy of this file, grab the latest version of `schema.sql` from the repo.
 
 ## Trip flow
 
