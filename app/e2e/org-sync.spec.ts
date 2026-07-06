@@ -420,6 +420,71 @@ test("an organiser can still correct a card after completing the round, and it s
 });
 
 /**
+ * Regression test for a real data-loss bug: an organiser keyed a player's
+ * card manually (e.g. from a paper backup) without completing the round.
+ * A marker then picked that same player as their partner in the ordinary
+ * marking flow — PlayerHome always started a blank Array(18).fill(0) card
+ * regardless of what was already on the drop-box, and gts_submit_card
+ * blindly overwrote whatever it was given, so submitting silently wiped
+ * the organiser's real scores back to zero. Fixed by fetching the existing
+ * card before starting a blank one, plus a server-side guard that refuses
+ * gts_submit_card once a card is already marked done.
+ */
+test("marking a player who already has an organiser-keyed card doesn't overwrite it", async ({ browser }) => {
+  test.setTimeout(60000);
+  const stub = await startStubDropbox();
+
+  const org = await browser.newContext({ viewport: { width: 390, height: 760 } });
+  const orgPage = await org.newPage();
+  await orgPage.goto(`${APP}#/org`);
+  await orgPage.getByTestId("new-trip").click();
+  await orgPage.getByTestId("trip-name").fill("Clobber Guard Cup");
+  await orgPage.getByRole("button", { name: /Use my own/ }).click();
+  await orgPage.getByTestId("dropbox-url").fill(stub.url);
+  await orgPage.getByTestId("dropbox-key").fill("stub-key");
+  await orgPage.getByTestId("create-trip").click();
+
+  for (const [name, hcap] of [["Gail Gordon", "11"], ["Hal Hunt", "17"]] as const) {
+    await orgPage.getByTestId("player-name").fill(name);
+    await orgPage.getByTestId("player-hcap").fill(hcap);
+    await orgPage.getByTestId("add-player").click();
+  }
+  await orgPage.getByTestId("add-round").click();
+  await orgPage.getByTestId("course-name-0").fill("Clobber Links");
+  await orgPage.getByTestId("course-paste-0").fill(
+    `${Array(18).fill(4).join(" ")}\n${Array.from({ length: 18 }, (_, i) => i + 1).join(" ")}`,
+  );
+  await orgPage.getByTestId("course-save-0").click();
+  await orgPage.getByTestId("setup-done").click();
+
+  // organiser keys Gail's card manually (paper backup) — the round is NOT
+  // completed, so the ordinary marker flow for Gail is still wide open
+  await orgPage.getByRole("button", { name: /^Round 1 / }).click();
+  await orgPage.getByRole("button", { name: "key card" }).first().click();
+  for (let h = 0; h < 18; h++) await orgPage.getByTestId(`mc-0-${h}`).fill("4");
+  await orgPage.getByTestId("mc-save-0").click();
+  await expect(orgPage.getByTestId("card-list")).toContainText("47 pts"); // 11 holes x 3pts + 7 holes x 2pts
+  await orgPage.getByTestId("share-pack").click();
+  const packUrl = await orgPage.getByTestId("share-url").inputValue();
+
+  // ---- Hal opens the pack and picks Gail as the partner he's marking
+  const hal = await browser.newContext({ viewport: { width: 390, height: 760 } });
+  const halPage = await hal.newPage();
+  await halPage.goto(packUrl);
+  await halPage.getByRole("button", { name: "That's me" }).nth(1).click(); // Hal
+  await halPage.getByTestId("mark-0").click(); // marking Gail
+
+  // Gail's card must show as already submitted, with her real score — not
+  // a blank card ready to key in and clobber with zeros
+  await expect(halPage.getByText("Card submitted")).toBeVisible({ timeout: 20000 });
+  await halPage.getByRole("button", { name: "Review submitted card" }).click();
+  await expect(halPage.getByTestId("submit-total")).toHaveText("47 pts");
+
+  // ---- the organiser's view still shows Gail's real card, untouched
+  await expect(orgPage.getByTestId("dg-pts-0")).toHaveText("47", { timeout: 20000 });
+});
+
+/**
  * The point of this test: a player can review their OWN official card
  * (the one their marking partner is keeping for them) read-only, straight
  * from the drop-box — without ever gaining access to anyone else's card or
