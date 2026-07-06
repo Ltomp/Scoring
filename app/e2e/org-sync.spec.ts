@@ -210,3 +210,74 @@ test("a trip with no state yet stays invisible on #/org until state appears", as
   await page2.goto(`${APP}#/org`);
   await expect(page2.getByText("Late Bloomers Cup")).toBeVisible({ timeout: 20000 });
 });
+
+/**
+ * The point of this test: a trip that was created (or restored from a JSON
+ * backup) with NO drop-box can be connected to one later from Trip Home —
+ * this is the recovery path for a trip that lost its drop-box registration.
+ * Connecting must push both the trip's setup AND every already-keyed card,
+ * not just the roster/courses — otherwise a second device would see the
+ * right players but an empty scorecard.
+ */
+test("connecting a local-only trip to a drop-box pushes its setup and its cards", async ({ browser }) => {
+  test.setTimeout(60000);
+  const stub = await startStubDropbox();
+
+  // ---- device 1: create a trip with NO drop-box at all, key a card locally
+  const dev1 = await browser.newContext({ viewport: { width: 390, height: 760 } });
+  const page1 = await dev1.newPage();
+  await page1.goto(`${APP}#/org`);
+  await page1.getByTestId("new-trip").click();
+  await page1.getByTestId("trip-name").fill("Reconnect Cup");
+  await page1.getByRole("button", { name: /Use my own/ }).click();
+  await page1.getByTestId("dropbox-url").fill("");
+  await page1.getByTestId("dropbox-key").fill("");
+  await page1.getByTestId("create-trip").click();
+
+  await page1.getByTestId("player-name").fill("Gail Gordon");
+  await page1.getByTestId("player-hcap").fill("11");
+  await page1.getByTestId("add-player").click();
+  await page1.getByTestId("player-name").fill("Hal Hunt");
+  await page1.getByTestId("player-hcap").fill("17");
+  await page1.getByTestId("add-player").click();
+
+  await page1.getByTestId("add-round").click();
+  await page1.getByTestId("course-name-0").fill("Reconnect Links");
+  await page1.getByTestId("course-paste-0").fill(
+    `${Array(18).fill(4).join(" ")}\n${Array.from({ length: 18 }, (_, i) => i + 1).join(" ")}`,
+  );
+  await page1.getByTestId("course-save-0").click();
+  await page1.getByTestId("setup-done").click();
+
+  // key Gail's card locally — no drop-box exists yet, so this never leaves the device
+  await page1.getByRole("button", { name: /^Round 1 / }).click();
+  await page1.getByRole("button", { name: "key card" }).first().click();
+  for (let h = 0; h < 18; h++) await page1.getByTestId(`mc-0-${h}`).fill("4");
+  await page1.getByTestId("mc-save-0").click();
+  await expect(page1.getByTestId("card-list")).toContainText("47 pts");
+
+  // ---- back on Trip Home, connect a drop-box to this now-existing trip
+  await page1.getByRole("link", { name: /‹ Reconnect Cup/ }).click();
+  await expect(page1.getByTestId("show-connect-dropbox")).toBeVisible();
+  await page1.getByTestId("show-connect-dropbox").click();
+  await page1.getByTestId("dropbox-url").fill(stub.url);
+  await page1.getByTestId("dropbox-key").fill("stub-key");
+  await page1.getByTestId("connect-dropbox").click();
+
+  // once connected, the normal access-link UI takes over
+  await page1.getByRole("button", { name: /Access this trip on another device/ }).click();
+  const accessUrl = await page1.getByTestId("share-url").inputValue();
+
+  // ---- device 2: open the access link — roster, course AND Gail's card all arrive
+  const dev2 = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page2 = await dev2.newPage();
+  await page2.goto(accessUrl);
+
+  await page2.getByRole("button", { name: "Setup" }).click();
+  await expect(page2.getByText("Gail Gordon").first()).toBeVisible({ timeout: 20000 });
+  await expect(page2.getByText("Reconnect Links")).toBeVisible();
+  await page2.getByTestId("setup-done").click();
+
+  await page2.getByRole("button", { name: /^Round 1 / }).click();
+  await expect(page2.getByTestId("dg-pts-0")).toHaveText("47", { timeout: 20000 });
+});

@@ -8,11 +8,18 @@ import { onTripSyncStatus, pullTripMeta, pushTripMeta, TripSyncStatus } from "..
 import { fetchAndMergeAllCards } from "../../state/cardSync";
 import { shareUrl } from "../../share/codec";
 import { ShareSheet } from "../../components/ShareSheet";
+import { registerTrip, submitCard } from "../../sync/dropbox";
+import { DEFAULT_DROPBOX } from "../../dropboxConfig";
 
 export function TripHome({ trip }: { trip: Trip }) {
   useAppState();
   const [sync, setSync] = useState<TripSyncStatus>("synced");
   const [showAccess, setShowAccess] = useState(false);
+  const [showConnect, setShowConnect] = useState(false);
+  const [dbUrl, setDbUrl] = useState(DEFAULT_DROPBOX?.url ?? "");
+  const [dbKey, setDbKey] = useState(DEFAULT_DROPBOX?.anonKey ?? "");
+  const [connecting, setConnecting] = useState(false);
+  const [connectErr, setConnectErr] = useState("");
   const upTo = lastActiveRound(trip);
   const res = upTo > 0 ? orgCompute(trip, upTo) : null;
   const nRounds = computableRounds(trip);
@@ -44,6 +51,36 @@ export function TripHome({ trip }: { trip: Trip }) {
   const order = res
     ? trip.players.map((_, i) => i).sort((a, b) => res.overallPos[a] - res.overallPos[b])
     : [];
+
+  async function connectDropbox() {
+    const dropbox = { url: dbUrl.trim(), anonKey: dbKey.trim() };
+    if (!dropbox.url || !dropbox.anonKey) {
+      setConnectErr("Enter both the project URL and anon key.");
+      return;
+    }
+    setConnecting(true);
+    setConnectErr("");
+    try {
+      await registerTrip(dropbox, trip.id, trip.writeKey, trip.readKey);
+    } catch (e) {
+      setConnecting(false);
+      setConnectErr(`Couldn't reach the drop-box (${e instanceof Error ? e.message : e}). Check the URL and key.`);
+      return;
+    }
+    mutate((d) => { d.trips.find((t) => t.id === trip.id)!.dropbox = dropbox; });
+    pushTripMeta(trip.id);
+    // bulk-push every card already on this trip — otherwise trip-meta would
+    // say a round is complete but a second device's card fetch comes back empty
+    trip.rounds.forEach((r, i) => {
+      r.cards.forEach((card, p) => {
+        if (!card) return;
+        const done = r.cardMeta[p]?.final ?? r.completed;
+        submitCard(dropbox, trip.id, trip.writeKey, i + 1, p, trip.players[p]?.name ?? "", card, done).catch(() => {});
+      });
+    });
+    setConnecting(false);
+    setShowConnect(false);
+  }
 
   return (
     <>
@@ -151,11 +188,33 @@ export function TripHome({ trip }: { trip: Trip }) {
               Only share it with people you want running the comp.
             </p>
           </>
+        ) : showConnect ? (
+          <div className="card" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div className="label">Connect a drop-box</div>
+            <label className="field"><span>Project URL</span>
+              <input value={dbUrl} onChange={(e) => setDbUrl(e.target.value)} placeholder="https://xxxx.supabase.co" data-testid="dropbox-url" />
+            </label>
+            <label className="field"><span>Anon (public) key</span>
+              <input value={dbKey} onChange={(e) => setDbKey(e.target.value)} placeholder="eyJhbGciOi…" data-testid="dropbox-key" />
+            </label>
+            {connectErr && <p className="error-text">{connectErr}</p>}
+            <div className="btn-row">
+              <button className="btn" disabled={connecting} onClick={connectDropbox} data-testid="connect-dropbox">
+                {connecting ? "Connecting…" : "Connect ›"}
+              </button>
+              <button className="btn ghost" onClick={() => setShowConnect(false)}>Cancel</button>
+            </div>
+          </div>
         ) : (
-          <p className="hint" style={{ padding: "0 6px" }}>
-            No drop-box on this trip, so it only lives on this device — use Backup/Restore
-            below to move it.
-          </p>
+          <>
+            <p className="hint" style={{ padding: "0 6px" }}>
+              No drop-box on this trip, so it only lives on this device — use Backup/Restore
+              below to move it, or connect one to get auto-sync and access from other devices.
+            </p>
+            <button className="btn ghost" onClick={() => setShowConnect(true)} data-testid="show-connect-dropbox">
+              Connect a drop-box
+            </button>
+          </>
         )}
 
         <div className="btn-row">
