@@ -6,6 +6,7 @@ export function startStubDropbox(port = 0) {
   const trips = new Map(); // id -> {writeKey, readKey}
   const cards = new Map(); // `${trip}:${round}:${player}` -> row
   const completed = new Set(); // `${trip}:${round}`
+  const tripState = new Map(); // id -> {state, updated_at}
 
   const server = http.createServer((req, res) => {
     const send = (code, body) => {
@@ -50,6 +51,16 @@ export function startStubDropbox(port = 0) {
         if (args.p_completed) completed.add(key);
         else completed.delete(key);
         return send(204);
+      }
+      if (fn === "gts_save_trip_state") {
+        if (!trip || trip.readKey !== args.p_key) return send(401, { message: "bad trip or key" });
+        tripState.set(args.p_trip, { state: args.p_state, updated_at: new Date().toISOString() });
+        return send(204);
+      }
+      if (fn === "gts_load_trip_state") {
+        if (!trip || trip.readKey !== args.p_key) return send(401, { message: "bad trip or key" });
+        const row = tripState.get(args.p_trip);
+        return send(200, row ? [row] : []);
       }
       send(404, { message: "unknown rpc" });
     });

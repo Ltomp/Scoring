@@ -42,7 +42,7 @@ test("capture key screens @shots", async ({ browser }) => {
   await orgPage.screenshot({ path: `${OUT}/5-setup.png`, fullPage: true });
   await orgPage.getByTestId("setup-done").click();
 
-  await orgPage.getByText("Round 1", { exact: false }).first().click();
+  await orgPage.getByRole("button", { name: /^Round 1 / }).click();
   await orgPage.getByTestId("share-pack").click();
   const packUrl = await orgPage.getByTestId("share-url").inputValue();
   await orgPage.screenshot({ path: `${OUT}/6-share-pack.png` });
@@ -97,8 +97,7 @@ test("capture laptop organiser screens @shots", async ({ browser }) => {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await ctx.newPage();
 
-  await page.goto(APP);
-  await page.getByRole("button", { name: /^Organiser/ }).click();
+  await page.goto(`${APP}#/org`);
   await page.getByTestId("new-trip").click();
   await page.getByTestId("trip-name").fill("Peninsula Trip");
   await page.getByRole("button", { name: /Use my own/ }).click();
@@ -123,7 +122,7 @@ test("capture laptop organiser screens @shots", async ({ browser }) => {
   );
   await page.getByTestId("course-save-0").click();
   await page.getByTestId("setup-done").click();
-  await page.getByText("Round 1", { exact: false }).first().click();
+  await page.getByRole("button", { name: /^Round 1 / }).click();
 
   // key a few cards straight into the grid
   const cards = [

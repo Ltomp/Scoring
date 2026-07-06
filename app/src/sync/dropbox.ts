@@ -58,6 +58,26 @@ export function completeRound(cfg: DropboxConfig, tripId: string, readKey: strin
   });
 }
 
+export interface RemoteTripState<T> {
+  state: T;
+  updated_at: string;
+}
+
+/** Push the trip's roster/courses/penalties/completion state (not cards). */
+export function saveTripState<T>(cfg: DropboxConfig, tripId: string, readKey: string, state: T) {
+  return rpc<void>(cfg, "gts_save_trip_state", {
+    p_trip: tripId, p_key: readKey, p_state: state,
+  });
+}
+
+/** Pull it back down — used to adopt a trip on a new device, or refresh. */
+export async function loadTripState<T>(cfg: DropboxConfig, tripId: string, readKey: string): Promise<RemoteTripState<T> | null> {
+  const rows = await rpc<RemoteTripState<T>[]>(cfg, "gts_load_trip_state", {
+    p_trip: tripId, p_key: readKey,
+  });
+  return rows[0] ?? null;
+}
+
 /**
  * Offline outbox: keeps trying to deliver the player's latest card until
  * the drop-box accepts it. Only the newest state matters (uploads are

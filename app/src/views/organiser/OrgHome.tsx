@@ -38,8 +38,8 @@ export function OrgHome() {
           <div className="card">
             <div className="label">No trips yet</div>
             <p className="hint" style={{ fontSize: 13.5 }}>
-              Create the trip here on the organiser's phone. Players never need this
-              section — they just tap the round links you share.
+              This page is just for organisers — bookmark it, since players never see a
+              link to it. They only ever tap the round links you share with them.
             </p>
           </div>
         )}
@@ -68,8 +68,9 @@ export function OrgHome() {
           }}
         />
         <p className="hint" style={{ padding: "0 6px" }}>
-          Moving the comp between phone and laptop: Backup on one device, Restore here on
-          the other. Cards keep auto-collecting from the drop-box on whichever device is open.
+          Got a trip with a drop-box configured? Open it here, then use "Access this trip
+          on another device" inside it — no export/import needed. Restore-from-backup is
+          just the fallback for trips without one.
         </p>
 
         {archived.length > 0 && <div className="label" style={{ padding: "8px 6px 0" }}>Archive</div>}

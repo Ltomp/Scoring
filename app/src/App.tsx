@@ -1,7 +1,9 @@
 import { JSX, useEffect } from "react";
 import { nav, useRoute } from "./router";
 import { decodePayload } from "./share/codec";
-import { emptyPlayerCard, mutate, playerCardKey, useAppState } from "./state/store";
+import { adoptTrip, emptyPlayerCard, getState, mutate, playerCardKey, useAppState } from "./state/store";
+import { pullTripMeta } from "./state/tripSync";
+import { fetchAndMergeAllCards } from "./state/cardSync";
 import { Home } from "./views/Home";
 import { PlayerHome } from "./views/player/PlayerHome";
 import { ScoreEntry } from "./views/player/ScoreEntry";
@@ -35,6 +37,19 @@ export function App(): JSX.Element {
           if (!d.player.cards[k]) d.player.cards[k] = emptyPlayerCard();
         });
         nav("/player");
+      } else if (payload.kind === "org") {
+        // organiser access link: adopt (or re-adopt) this trip, then pull its
+        // current roster/courses/penalties/cards straight from the drop-box
+        mutate((d) => {
+          if (!d.trips.some((t) => t.id === payload.tripId)) d.trips.unshift(adoptTrip(payload));
+        });
+        nav(`/org/t/${payload.tripId}`);
+        pullTripMeta(payload.tripId)
+          .then(() => {
+            const t = getState().trips.find((x) => x.id === payload.tripId);
+            return t ? fetchAndMergeAllCards(t) : undefined;
+          })
+          .catch((e) => alert(e instanceof Error ? e.message : "Couldn't load that trip."));
       } else {
         // a handed-in card for the organiser
         const trip = state.trips.find((t) => t.id === payload.tripId);

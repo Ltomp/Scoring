@@ -31,8 +31,7 @@ test("organiser → player → results round trip", async ({ browser }) => {
   const orgPage = await org.newPage();
 
   // --- organiser creates trip
-  await orgPage.goto(APP);
-  await orgPage.getByRole("button", { name: /^Organiser/ }).click();
+  await orgPage.goto(`${APP}#/org`);
   await orgPage.getByTestId("new-trip").click();
   await orgPage.getByTestId("trip-name").fill("E2E Cup");
   await orgPage.getByRole("button", { name: /Use my own/ }).click(); // point at the test stub, not the real default
@@ -56,7 +55,7 @@ test("organiser → player → results round trip", async ({ browser }) => {
   await orgPage.getByTestId("setup-done").click();
 
   // --- share round pack
-  await orgPage.getByText("Round 1", { exact: false }).first().click();
+  await orgPage.getByRole("button", { name: /^Round 1 / }).click();
   await orgPage.getByTestId("share-pack").click();
   const packUrl = await orgPage.getByTestId("share-url").inputValue();
   expect(packUrl).toContain("#/i/");
@@ -131,8 +130,7 @@ test("laptop organiser keys cards straight into the desk grid", async ({ browser
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await ctx.newPage();
 
-  await page.goto(APP);
-  await page.getByRole("button", { name: /^Organiser/ }).click();
+  await page.goto(`${APP}#/org`);
   await page.getByTestId("new-trip").click();
   await page.getByTestId("trip-name").fill("Desk Cup");
   // opt out of the default drop-box entirely: pure keyed-card mode
@@ -153,7 +151,7 @@ test("laptop organiser keys cards straight into the desk grid", async ({ browser
   );
   await page.getByTestId("course-save-0").click();
   await page.getByTestId("setup-done").click();
-  await page.getByText("Round 1", { exact: false }).first().click();
+  await page.getByRole("button", { name: /^Round 1 / }).click();
 
   // the desk grid is visible at laptop width; mobile list is not
   await expect(page.getByTestId("desk-grid")).toBeVisible();

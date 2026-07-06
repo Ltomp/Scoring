@@ -31,9 +31,12 @@ players and 10 rounds per trip; multi-trip with archive.
 - **On a laptop** (≥900px window) the organiser screens switch to a desk
   layout: a spreadsheet-style grid to key every player's card directly
   (like the workbook's scoring sheet), results and handicaps side by side,
-  and a two-column trip overview. Same app, same URL — use **Backup trip
-  (JSON)** / **Restore trip from backup** to move the comp between phone
-  and laptop; cards auto-collect on whichever device is open.
+  and a two-column trip overview.
+- **Any organiser device can pick up a trip automatically** — no JSON
+  export/import needed. Roster, courses, penalties and round-completion
+  all sync through the drop-box (not just cards), so opening the same
+  trip's **organiser access link** on a laptop, or a co-organiser's phone,
+  pulls everything straight down and keeps it live from there.
 
 ## Setup
 
@@ -54,6 +57,13 @@ Want your own project instead (or none at all)? On **New trip**, click
    into the two fields (or clear both to run with no drop-box — organisers
    then key every card by hand).
 
+Already running your own project from an earlier version of this app? Paste
+the whole of `supabase/schema.sql` in again — every statement is
+idempotent (`create table if not exists`, `create or replace function`), so
+re-running it is safe and just adds the newer tables/functions (currently
+`gts_trip_state` + the two RPCs that sync roster/courses/penalties across
+devices) without touching your existing trips or cards.
+
 ## Trip flow
 
 | When | Organiser | Players |
@@ -65,8 +75,19 @@ Want your own project instead (or none at all)? On **New trip**, click
 | Evening | Share the results snapshot to the group chat, if you choose | Read it in the chat |
 | Next trip | "Start new trip" (optionally copy roster with finishing h'caps); old trips stay archived | — |
 
-The organiser's **Backup trip (JSON)** button downloads the full trip state;
-keep one nightly.
+### Running the comp from more than one device
+
+Open a trip → **Access this trip on another device** → scan the QR or send
+the link. Whoever opens it (a laptop, a co-organiser's phone) gets the full
+trip automatically — roster, courses, penalties, completed rounds, cards,
+the lot — and it keeps syncing both ways from there while the trip has a
+drop-box configured. This is the normal way to move between your phone at
+the course and a laptop back at the house; **Backup trip (JSON)** /
+**Restore trip from backup** still exist as a manual fallback for trips
+with no drop-box, or as an extra copy to keep somewhere safe.
+
+The organiser access link grants full control (scores, penalties, everything)
+— only share it with people you actually want running the comp.
 
 ## Development
 
@@ -98,6 +119,9 @@ lives at `https://<owner>.github.io/Scoring/`.
 - Every trip gets its own random write/read keys, even ones sharing the
   default drop-box — one trip's keys can't read another trip's cards.
   Anyone can also point their own trip at their own Supabase project.
-- One primary organiser device runs the comp (move it via backup
-  export/import between phone and laptop); penalties and round completion
-  live on that device.
+- Multiple organiser devices can run the same trip at once via the access
+  link; each pushes its own changes and pulls the others' every time it's
+  open. This is deliberately simple last-write-wins syncing (fine for one
+  or two organisers making occasional edits), not real-time conflict
+  resolution — avoid two people editing the exact same thing at the exact
+  same moment.

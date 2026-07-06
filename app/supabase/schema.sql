@@ -32,9 +32,20 @@ create table if not exists public.gts_completed (
   primary key (trip_id, round)
 );
 
+-- Trip metadata (roster, courses, penalties, which rounds are complete) so
+-- an organiser can pick a trip up on a second device without a JSON
+-- export/import. Scores themselves stay out of here — they're already
+-- covered by gts_cards above; this table is deliberately small.
+create table if not exists public.gts_trip_state (
+  trip_id uuid primary key references public.gts_trips (id) on delete cascade,
+  state jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
 alter table public.gts_trips enable row level security;
 alter table public.gts_cards enable row level security;
 alter table public.gts_completed enable row level security;
+alter table public.gts_trip_state enable row level security;
 -- no policies: tables are unreachable except via the functions below
 
 -- Called by the organiser app when a trip is created.
@@ -100,10 +111,39 @@ begin
   end if;
 end $$;
 
-revoke all on public.gts_trips, public.gts_cards, public.gts_completed from anon, authenticated;
+-- Called by any organiser device whenever roster/courses/penalties/round
+-- completion change, so another device can pick the trip up.
+create or replace function public.gts_save_trip_state(
+  p_trip uuid, p_key text, p_state jsonb
+) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not exists (select 1 from gts_trips t where t.id = p_trip and t.read_key = p_key) then
+    raise exception 'bad trip or key';
+  end if;
+  insert into gts_trip_state (trip_id, state, updated_at)
+  values (p_trip, p_state, now())
+  on conflict (trip_id) do update set state = excluded.state, updated_at = now();
+end $$;
+
+-- Called when opening a trip (or an "organiser access" link on a new device).
+create or replace function public.gts_load_trip_state(
+  p_trip uuid, p_key text
+) returns table (state jsonb, updated_at timestamptz)
+language plpgsql security definer set search_path = public as $$
+begin
+  if not exists (select 1 from gts_trips t where t.id = p_trip and t.read_key = p_key) then
+    raise exception 'bad trip or key';
+  end if;
+  return query select s.state, s.updated_at from gts_trip_state s where s.trip_id = p_trip;
+end $$;
+
+revoke all on public.gts_trips, public.gts_cards, public.gts_completed, public.gts_trip_state from anon, authenticated;
 grant execute on function
   public.gts_register_trip(uuid, text, text),
   public.gts_submit_card(uuid, text, int, int, text, jsonb, boolean),
   public.gts_fetch_cards(uuid, text, int),
-  public.gts_complete_round(uuid, text, int, boolean)
+  public.gts_complete_round(uuid, text, int, boolean),
+  public.gts_save_trip_state(uuid, text, jsonb),
+  public.gts_load_trip_state(uuid, text)
 to anon;

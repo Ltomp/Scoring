@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { Card, Course, MAX_PLAYERS, MAX_ROUNDS } from "../engine";
-import { DropboxConfig, RoundPackPayload } from "../share/payloads";
+import { DropboxConfig, OrgAccessPayload, RoundPackPayload } from "../share/payloads";
 
 // ---------------------------------------------------------------- types
 
@@ -137,6 +137,23 @@ export function createTrip(
     dropbox,
     writeKey: randomKey(),
     readKey: randomKey(),
+    archived: false,
+  };
+}
+
+/** Build a local Trip shell from an "organiser access" link — the actual
+ *  roster/courses arrive moments later via pullTripMeta. */
+export function adoptTrip(payload: OrgAccessPayload): Trip {
+  return {
+    id: payload.tripId,
+    name: payload.tripName,
+    year: "",
+    createdAt: Date.now(),
+    players: [],
+    rounds: [],
+    dropbox: payload.dropbox,
+    writeKey: payload.writeKey,
+    readKey: payload.readKey,
     archived: false,
   };
 }

@@ -62,8 +62,7 @@ test("full two-round trip: marker rotation, paper cards, penalty, absentee, hand
   orgPage.on("dialog", (d) => d.accept());
 
   // ---- trip setup: 4 players, 2 rounds, pointed at the local drop-box stand-in
-  await orgPage.goto(APP);
-  await orgPage.getByRole("button", { name: /^Organiser/ }).click();
+  await orgPage.goto(`${APP}#/org`);
   await orgPage.getByTestId("new-trip").click();
   await orgPage.getByTestId("trip-name").fill("Full Trip Test");
   await orgPage.getByRole("button", { name: /Use my own/ }).click();
@@ -89,7 +88,7 @@ test("full two-round trip: marker rotation, paper cards, penalty, absentee, hand
   await orgPage.getByTestId("setup-done").click();
 
   // =========================================================== ROUND 1
-  await orgPage.getByText("Round 1", { exact: false }).first().click();
+  await orgPage.getByRole("button", { name: /^Round 1 / }).click();
   await orgPage.getByTestId("share-pack").click();
   const pack1Url = await orgPage.getByTestId("share-url").inputValue();
 
@@ -139,7 +138,7 @@ test("full two-round trip: marker rotation, paper cards, penalty, absentee, hand
   await expect(hcRows.filter({ hasText: "Dee Dunn" })).toContainText("19.5");
 
   // =========================================================== ROUND 2
-  await orgPage.getByText("Round 2", { exact: false }).first().click();
+  await orgPage.getByRole("button", { name: /^Round 2 / }).click();
   // daily handicaps reflect round 1's movement, rounded half-away-from-zero
   await expect(orgPage.getByTestId("dg-hc-0")).toHaveText("9");  // Amy 8.5 -> 9
   await expect(orgPage.getByTestId("dg-hc-1")).toHaveText("12"); // Ben 12.25 -> 12
