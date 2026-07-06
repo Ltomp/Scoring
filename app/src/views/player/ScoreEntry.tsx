@@ -85,9 +85,16 @@ export function ScoreEntry() {
           <div className="label" style={{ textAlign: "center" }}>{partner.name} — gross score</div>
           <div className="stepper">
             <button className="step-btn" aria-label="one less" disabled={isWiped || shown <= 1} onClick={() => setPartner(shown - 1)}>−</button>
-            {isWiped
-              ? <div className="score-big wiped">WIPE</div>
-              : <div className="score-big num" data-testid="score">{shown}</div>}
+            <div className="score-col">
+              {isWiped
+                ? <div className="score-big wiped">WIPE</div>
+                : <div className="score-big num" data-testid="score">{shown}</div>}
+              {!isWiped && pStrokes > 0 && (
+                <div className="score-strokes" data-testid="score-strokes">
+                  {Array.from({ length: pStrokes }, (_, i) => <span className="strokes-dot" key={i} />)}
+                </div>
+              )}
+            </div>
             <button className="step-btn" aria-label="one more" disabled={isWiped || shown >= 15} onClick={() => setPartner(shown + 1)}>+</button>
           </div>
           <div className="pts-line">

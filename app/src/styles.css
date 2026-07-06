@@ -161,6 +161,9 @@ textarea { resize: vertical; }
 .step-btn:disabled { opacity: .35; }
 .score-big { font-size: 76px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.04em; line-height: 1; text-align: center; min-width: 100px; }
 .score-big.wiped { color: var(--flag); font-size: 40px; font-weight: 750; }
+.score-col { display: flex; flex-direction: column; align-items: center; }
+.score-strokes { display: flex; justify-content: center; gap: 5px; margin-top: 6px; }
+.score-strokes .strokes-dot { margin-left: 0; }
 .pts-line { text-align: center; font-size: 14px; color: var(--ink-soft); margin-top: 4px; }
 .pts-line b { color: var(--turf); font-size: 16px; }
 .wipe-btn { display: block; margin: 8px auto 0; background: none; border: 0; font-size: 13.5px; font-weight: 650; color: var(--flag); padding: 8px 16px; }
