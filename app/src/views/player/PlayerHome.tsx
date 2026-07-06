@@ -112,6 +112,9 @@ export function PlayerHome() {
         <div className="stat"><div className="v num">{partnerPts}</div><div className="k">{firstName(partner.name)} pts</div></div>
         <div className="stat"><div className="v num">{tallyHoles ? tallyPts : "—"}</div><div className="k">My tally</div></div>
       </div>
+      <button className="btn small ghost" onClick={() => nav("/player/mine")} data-testid="review-mine">
+        Review my scores (read-only)
+      </button>
       {submitted ? (
         <>
           <div className="card">

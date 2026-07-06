@@ -52,6 +52,33 @@ export function fetchCards(cfg: DropboxConfig, tripId: string, readKey: string, 
   });
 }
 
+/** Organiser correction — unlike submitCard, works even after the round is completed. */
+export function organiserSubmitCard(
+  cfg: DropboxConfig, tripId: string, readKey: string,
+  round: number, player: number, name: string, scores: Card, done: boolean,
+) {
+  return rpc<void>(cfg, "gts_organiser_submit_card", {
+    p_trip: tripId, p_key: readKey, p_round: round, p_player: player,
+    p_name: name, p_scores: scores, p_done: done,
+  });
+}
+
+export interface RemoteOwnCard {
+  scores: Card;
+  done: boolean;
+  updated_at: string;
+}
+
+/** A player reading back just their own card — never anyone else's, never the comp. */
+export async function fetchOwnCard(
+  cfg: DropboxConfig, tripId: string, writeKey: string, round: number, player: number,
+): Promise<RemoteOwnCard | null> {
+  const rows = await rpc<RemoteOwnCard[]>(cfg, "gts_fetch_own_card", {
+    p_trip: tripId, p_key: writeKey, p_round: round, p_player: player,
+  });
+  return rows[0] ?? null;
+}
+
 export function completeRound(cfg: DropboxConfig, tripId: string, readKey: string, round: number, completed: boolean) {
   return rpc<void>(cfg, "gts_complete_round", {
     p_trip: tripId, p_key: readKey, p_round: round, p_completed: completed,

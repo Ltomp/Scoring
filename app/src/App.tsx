@@ -8,6 +8,7 @@ import { Home } from "./views/Home";
 import { PlayerHome } from "./views/player/PlayerHome";
 import { ScoreEntry } from "./views/player/ScoreEntry";
 import { SubmitRound } from "./views/player/SubmitRound";
+import { MyCard } from "./views/player/MyCard";
 import { OrgHome } from "./views/organiser/OrgHome";
 import { NewTrip } from "./views/organiser/NewTrip";
 import { TripHome } from "./views/organiser/TripHome";
@@ -83,6 +84,7 @@ export function App(): JSX.Element {
   if (p0 === "player") {
     if (p1 === "score") view = <ScoreEntry />;
     else if (p1 === "submit") view = <SubmitRound />;
+    else if (p1 === "mine") view = <MyCard />;
     else view = <PlayerHome />;
   } else if (p0 === "org") {
     const trip = p1 === "t" && p2 ? state.trips.find((t) => t.id === p2) : undefined;
