@@ -77,16 +77,20 @@ describe("primitives", () => {
     expect(holePoints(3, 4, 1, 38)).toBe(6); // 3 strokes, gross birdie
   });
 
-  it("scales the handicap adjustment cap when given a custom max", () => {
+  it("scales the handicap adjustment to a custom max, endpoints always hit it exactly", () => {
     // default (maxAdj=2) unaffected by the new optional param
     expect(adjustment(1, 32)).toBe(adjustment(1, 32, 2));
-    // large field, custom cap of 1 actually bites (0.25*20=5 would exceed it)
+    // linear interpolation: position 1 always loses exactly maxAdj and the
+    // last position always gains exactly maxAdj, for any field size
     expect(adjustment(1, 40, 1)).toBe(-1);
     expect(adjustment(40, 40, 1)).toBe(1);
-    // small field: the step simply runs out before a generous custom cap of 4
-    expect(adjustment(1, 8, 4)).toBe(-1);
-    expect(adjustment(8, 8, 4)).toBe(1);
-    // full table for a small field with a small custom cap
-    expect(adjustmentTable(4, 1)).toEqual([-0.5, -0.25, 0.25, 0.5]);
+    expect(adjustment(1, 8, 4)).toBe(-4);
+    expect(adjustment(8, 8, 4)).toBe(4);
+    // full table for a small field with a small custom cap, evenly spaced in between
+    const table = adjustmentTable(4, 1);
+    expect(table[0]).toBe(-1);
+    expect(table[1]).toBeCloseTo(-1 / 3, 9);
+    expect(table[2]).toBeCloseTo(1 / 3, 9);
+    expect(table[3]).toBe(1);
   });
 });

@@ -26,17 +26,18 @@ import { startStubDropbox } from "./stub-dropbox.mjs";
  *   Cam: 16*3 + 2*2 = 52
  *   Dee: 2*4 + 16*3 = 56, minus a 1-point penalty = 55
  * Round 1 order: Dee 55, Cam 52, Ben 48, Amy 44 (positions 1-4 of 4).
- * Adjustment(pos,n=4): half=2 -> pos1 -0.5, pos2 -0.25, pos3 +0.25, pos4 +0.5.
- *   Dee 20-0.5=19.5, Cam 16-0.25=15.75, Ben 12+0.25=12.25, Amy 8+0.5=8.5
- * Round 2 daily h'caps (rounded half-away-from-zero): Dee 20, Cam 16, Ben 12, Amy 9
- *   Amy: 9*3 + 9*2 = 45
- *   Ben: 12*3 + 6*2 = 48   (same shape as round 1)
- *   Cam: 16*3 + 2*2 = 52
- *   Dee: absent -> avg of (45,48,52) = round(145/3) = 48, ties Ben on points
+ * Adjustment(pos,n=4,maxAdj=2): linear interpolation, maxAdj*(2*(pos-1)/(n-1)-1)
+ *   -> pos1 -2, pos2 -2/3, pos3 +2/3, pos4 +2.
+ *   Dee 20-2=18, Cam 16-2/3=15.333, Ben 12+2/3=12.667, Amy 8+2=10
+ * Round 2 daily h'caps (rounded half-away-from-zero): Dee 18, Cam 15, Ben 13, Amy 10
+ *   Amy: 10*3 + 8*2 = 46
+ *   Ben: 13*3 + 5*2 = 49
+ *   Cam: 15*3 + 3*2 = 51
+ *   Dee: absent -> avg of (46,49,51) = round(146/3) = 49, ties Ben on points
  *        but loses the countback (an absentee's hole-by-hole values are all
  *        zero, so Ben's real countback figures rank him above her)
- * Round 2 order: Cam 52, Ben 48 (wins tie), Dee 48 (avg), Amy 45.
- * Trip totals: Cam 104, Dee 103, Ben 96, Amy 89.
+ * Round 2 order: Cam 51, Ben 49 (wins tie), Dee 49 (avg), Amy 46.
+ * Trip totals: Dee 104, Cam 103, Ben 97, Amy 90.
  */
 
 const APP = "/Scoring/";
@@ -132,18 +133,18 @@ test("full two-round trip: marker rotation, paper cards, penalty, absentee, hand
   await orgPage.getByRole("link", { name: /‹ Round 1/ }).click();
   await orgPage.getByRole("link", { name: /‹ Full Trip Test/ }).click();
   const hcRows = orgPage.locator(".row").filter({ hasText: "start" });
-  await expect(hcRows.filter({ hasText: "Amy Archer" })).toContainText("8.5");
-  await expect(hcRows.filter({ hasText: "Ben Baxter" })).toContainText("12.25");
-  await expect(hcRows.filter({ hasText: "Cam Clarke" })).toContainText("15.75");
-  await expect(hcRows.filter({ hasText: "Dee Dunn" })).toContainText("19.5");
+  await expect(hcRows.filter({ hasText: "Amy Archer" })).toContainText("10");
+  await expect(hcRows.filter({ hasText: "Ben Baxter" })).toContainText("12.67");
+  await expect(hcRows.filter({ hasText: "Cam Clarke" })).toContainText("15.33");
+  await expect(hcRows.filter({ hasText: "Dee Dunn" })).toContainText("18");
 
   // =========================================================== ROUND 2
   await orgPage.getByRole("button", { name: /^Round 2 / }).click();
   // daily handicaps reflect round 1's movement, rounded half-away-from-zero
-  await expect(orgPage.getByTestId("dg-hc-0")).toHaveText("9");  // Amy 8.5 -> 9
-  await expect(orgPage.getByTestId("dg-hc-1")).toHaveText("12"); // Ben 12.25 -> 12
-  await expect(orgPage.getByTestId("dg-hc-2")).toHaveText("16"); // Cam 15.75 -> 16
-  await expect(orgPage.getByTestId("dg-hc-3")).toHaveText("20"); // Dee 19.5 -> 20
+  await expect(orgPage.getByTestId("dg-hc-0")).toHaveText("10"); // Amy 10 -> 10
+  await expect(orgPage.getByTestId("dg-hc-1")).toHaveText("13"); // Ben 12.667 -> 13
+  await expect(orgPage.getByTestId("dg-hc-2")).toHaveText("15"); // Cam 15.333 -> 15
+  await expect(orgPage.getByTestId("dg-hc-3")).toHaveText("18"); // Dee 18 -> 18
   await orgPage.getByTestId("share-pack").click();
   const pack2Url = await orgPage.getByTestId("share-url").inputValue();
 
@@ -152,7 +153,7 @@ test("full two-round trip: marker rotation, paper cards, penalty, absentee, hand
   await amyPage.getByTestId("open-card").click();
   for (let h = 1; h <= 17; h++) await amyPage.getByTestId("next-hole").click();
   await amyPage.getByTestId("finish-card").click();
-  await expect(amyPage.getByTestId("submit-total")).toHaveText("48 pts");
+  await expect(amyPage.getByTestId("submit-total")).toHaveText("49 pts"); // Ben's daily hc is now 13
   await amyPage.getByTestId("submit-round").click();
 
   await benPage.goto(pack2Url);
@@ -160,25 +161,25 @@ test("full two-round trip: marker rotation, paper cards, penalty, absentee, hand
   await benPage.getByTestId("open-card").click();
   for (let h = 1; h <= 17; h++) await benPage.getByTestId("next-hole").click();
   await benPage.getByTestId("finish-card").click();
-  await expect(benPage.getByTestId("submit-total")).toHaveText("45 pts"); // Amy's daily hc is now 9
+  await expect(benPage.getByTestId("submit-total")).toHaveText("46 pts"); // Amy's daily hc is now 10
   await benPage.getByTestId("submit-round").click();
 
-  await expect(orgPage.getByTestId("dg-pts-0")).toHaveText("45", { timeout: 20000 });
-  await expect(orgPage.getByTestId("dg-pts-1")).toHaveText("48", { timeout: 20000 });
+  await expect(orgPage.getByTestId("dg-pts-0")).toHaveText("46", { timeout: 20000 });
+  await expect(orgPage.getByTestId("dg-pts-1")).toHaveText("49", { timeout: 20000 });
   await keyAllPar(orgPage, 2); // Cam again
-  await expect(orgPage.getByTestId("dg-pts-2")).toHaveText("52");
+  await expect(orgPage.getByTestId("dg-pts-2")).toHaveText("51");
   // Dee left absent entirely this round
   await orgPage.screenshot({ path: "shots/ft-2-round2-desk-grid.png" });
 
   await orgPage.getByTestId("complete-round").click(); // confirms the "Dee has no card" dialog
   const r2 = orgPage.getByTestId("daily-results");
   await expect(r2).toBeVisible();
-  await expect(orgPage.getByTestId("net-0")).toHaveText("45");
-  await expect(orgPage.getByTestId("net-1")).toHaveText("48");
-  await expect(orgPage.getByTestId("net-2")).toHaveText("52");
-  await expect(orgPage.getByTestId("net-3")).toHaveText("48"); // Dee: field average
+  await expect(orgPage.getByTestId("net-0")).toHaveText("46");
+  await expect(orgPage.getByTestId("net-1")).toHaveText("49");
+  await expect(orgPage.getByTestId("net-2")).toHaveText("51");
+  await expect(orgPage.getByTestId("net-3")).toHaveText("49"); // Dee: field average
   await expect(r2).toContainText("absent");
-  // Ben beats Dee on countback despite an equal 48 net (she has no real holes to count back on)
+  // Ben beats Dee on countback despite an equal 49 net (she has no real holes to count back on)
   const r2rows = r2.locator(".row");
   await expect(r2rows.nth(0)).toContainText("Cam Clarke");
   await expect(r2rows.nth(1)).toContainText("Ben Baxter");
@@ -191,14 +192,14 @@ test("full two-round trip: marker rotation, paper cards, penalty, absentee, hand
   await orgPage.getByRole("link", { name: /‹ Full Trip Test/ }).click();
   const lb = orgPage.getByTestId("leaderboard");
   const lbRows = lb.locator(".row");
-  await expect(lbRows.nth(0)).toContainText("Cam Clarke");
+  await expect(lbRows.nth(0)).toContainText("Dee Dunn");
   await expect(lbRows.nth(0)).toContainText("104");
-  await expect(lbRows.nth(1)).toContainText("Dee Dunn");
+  await expect(lbRows.nth(1)).toContainText("Cam Clarke");
   await expect(lbRows.nth(1)).toContainText("103");
   await expect(lbRows.nth(2)).toContainText("Ben Baxter");
-  await expect(lbRows.nth(2)).toContainText("96");
+  await expect(lbRows.nth(2)).toContainText("97");
   await expect(lbRows.nth(3)).toContainText("Amy Archer");
-  await expect(lbRows.nth(3)).toContainText("89");
+  await expect(lbRows.nth(3)).toContainText("90");
   await orgPage.screenshot({ path: "shots/ft-4-final-leaderboard.png", fullPage: true });
 
   // privacy check: Amy's phone never shows Cam, Dee, or the comp
