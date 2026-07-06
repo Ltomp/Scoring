@@ -14,7 +14,8 @@ export function encodePayload(payload: SharePayload): string {
 export function decodePayload(blob: string): SharePayload {
   const json = strFromU8(inflateSync(fromBase64Url(blob)));
   const payload = JSON.parse(json) as SharePayload;
-  if (payload.v !== 1 || (payload.kind !== "pack" && payload.kind !== "card")) {
+  const validKinds: SharePayload["kind"][] = ["pack", "card", "org"];
+  if (payload.v !== 1 || !validKinds.includes(payload.kind)) {
     throw new Error("This link isn't a recognised share from this app.");
   }
   return payload;

@@ -4,6 +4,7 @@ import { nav } from "../../router";
 import { registerTrip } from "../../sync/dropbox";
 import { orgCompute } from "./orgCompute";
 import { DEFAULT_DROPBOX } from "../../dropboxConfig";
+import { pushTripMeta } from "../../state/tripSync";
 
 export function NewTrip() {
   const { trips } = useAppState();
@@ -48,6 +49,7 @@ export function NewTrip() {
       }
     }
     mutate((d) => { d.trips.unshift(trip); });
+    pushTripMeta(trip.id);
     nav(`/org/t/${trip.id}/setup`);
   }
 

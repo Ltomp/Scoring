@@ -31,20 +31,25 @@ players and 10 rounds per trip; multi-trip with archive.
 - **On a laptop** (≥900px window) the organiser screens switch to a desk
   layout: a spreadsheet-style grid to key every player's card directly
   (like the workbook's scoring sheet), results and handicaps side by side,
-  and a two-column trip overview. Same app, same URL — use **Backup trip
-  (JSON)** / **Restore trip from backup** to move the comp between phone
-  and laptop; cards auto-collect on whichever device is open.
+  and a two-column trip overview.
+- **Any organiser device can pick up a trip automatically** — no JSON
+  export/import needed. Roster, courses, penalties and round-completion
+  all sync through the drop-box (not just cards), so opening the same
+  trip's **organiser access link** on a laptop, or a co-organiser's phone,
+  pulls everything straight down and keeps it live from there.
 
 ## Setup
 
 None needed — a shared drop-box (`src/dropboxConfig.ts`) is baked into the
 app, so **Start new trip** just works. That file holds a Supabase *project
 URL* and its **anon (public) key** — safe to commit; it's the key Supabase
-designs for client-side use, and the actual security boundary is the
-per-trip write/read keys minted at trip creation and enforced by the
-SECURITY DEFINER functions in [`supabase/schema.sql`](supabase/schema.sql)
-(the tables themselves are unreachable via the anon key). The secret
-`service_role` key is never used and must never go in this app.
+designs for client-side use, and the tables themselves are unreachable via
+the anon key except through the SECURITY DEFINER functions in
+[`supabase/schema.sql`](supabase/schema.sql). Per-trip write/read keys
+still separate players from organisers, but every trip on a shared project
+is discoverable by any organiser on that project — see "Trust model &
+limits" below before assuming otherwise. The secret `service_role` key is
+never used and must never go in this app.
 
 Want your own project instead (or none at all)? On **New trip**, click
 **Use my own** next to "Card drop-box":
@@ -53,6 +58,14 @@ Want your own project instead (or none at all)? On **New trip**, click
 2. Copy its *Project URL* and *anon public* key from **Project Settings → API**
    into the two fields (or clear both to run with no drop-box — organisers
    then key every card by hand).
+
+Already running your own project from an earlier version of this app? Paste
+the whole of `supabase/schema.sql` in again — every statement is
+idempotent (`create table if not exists`, `create or replace function`), so
+re-running it is safe and just adds the newer tables/functions (currently
+`gts_trip_state` and the RPCs that sync roster/courses/penalties across
+devices, plus `gts_list_trips`/`gts_delete_trip` that power automatic trip
+discovery on `#/org`) without touching your existing trips or cards.
 
 ## Trip flow
 
@@ -65,8 +78,31 @@ Want your own project instead (or none at all)? On **New trip**, click
 | Evening | Share the results snapshot to the group chat, if you choose | Read it in the chat |
 | Next trip | "Start new trip" (optionally copy roster with finishing h'caps); old trips stay archived | — |
 
-The organiser's **Backup trip (JSON)** button downloads the full trip state;
-keep one nightly.
+### Running the comp from more than one device
+
+Just open **#/org** on the other device (a laptop, a co-organiser's phone) —
+every trip on a drop-box project this device knows about (the shared default
+one, or any of your own you've used before) just shows up there on its own,
+fully hydrated: roster, courses, penalties, completed rounds, cards, the lot.
+No link, no QR, no export/import; it keeps syncing both ways from there.
+
+A brand-new device that's never talked to your *own* Supabase project
+before still needs one link in first, since there's no other way to hand it
+that project's URL/key without accounts: open a trip → **Access this trip on
+another device** → scan the QR or send the link. After that, the device
+knows about that project and auto-discovers every trip on it, past or
+future — this is really only needed once per organiser device, not once per
+trip. Trips on the app's shared default drop-box never need even that.
+
+**Backup trip (JSON)** / **Restore trip from backup** still exist as a
+manual fallback for trips with no drop-box, or as an extra copy to keep
+somewhere safe.
+
+The organiser access link grants full control (scores, penalties, everything)
+— only share it with people you actually want running the comp. Deleting a
+trip removes it from the drop-box for good, not just from this device —
+see "Trust model & limits" below for what that means for who can see it
+before it's deleted.
 
 ## Development
 
@@ -95,9 +131,24 @@ lives at `https://<owner>.github.io/Scoring/`.
   on paper. Nobody sees the comp except organisers.
 - Marker pairs should cover the field (A marks B, B marks A, and so on);
   organisers can key a card for anyone left unmarked.
-- Every trip gets its own random write/read keys, even ones sharing the
-  default drop-box — one trip's keys can't read another trip's cards.
-  Anyone can also point their own trip at their own Supabase project.
-- One primary organiser device runs the comp (move it via backup
-  export/import between phone and laptop); penalties and round completion
-  live on that device.
+- **`#/org` auto-discovers every trip on a drop-box project, not just ones
+  you were given a link for.** This is deliberate, so organiser devices
+  never need a manual handshake — but it means anyone who can reach a
+  drop-box project (its URL + public anon key, which ships in the app's
+  JS bundle for the shared default one) can see and fully control every
+  trip ever registered there, not just their own. There's no per-trip
+  secrecy left on a shared project — write/read keys still separate
+  players from organisers, but no longer separate one trip from another
+  on the same project. If you want a trip's visibility limited to people
+  you've specifically told about it, point it at **your own** Supabase
+  project instead of the shared default (New Trip → "Use my own") — that
+  project's URL/key is never baked into the app, so it's only reachable by
+  people you've actually given it to.
+- Deleting a trip removes its row (and cards/state) from the drop-box
+  entirely — it's gone for whoever else could see it, not just hidden on
+  your device.
+- Multiple organiser devices can run the same trip at once via auto-sync;
+  each pushes its own changes and pulls the others' every time it's open.
+  This is deliberately simple last-write-wins syncing (fine for one or two
+  organisers making occasional edits), not real-time conflict resolution —
+  avoid two people editing the exact same thing at the exact same moment.

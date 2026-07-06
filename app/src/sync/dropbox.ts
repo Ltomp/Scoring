@@ -58,6 +58,47 @@ export function completeRound(cfg: DropboxConfig, tripId: string, readKey: strin
   });
 }
 
+export interface RemoteTripState<T> {
+  state: T;
+  updated_at: string;
+}
+
+/** Push the trip's roster/courses/penalties/completion state (not cards). */
+export function saveTripState<T>(cfg: DropboxConfig, tripId: string, readKey: string, state: T) {
+  return rpc<void>(cfg, "gts_save_trip_state", {
+    p_trip: tripId, p_key: readKey, p_state: state,
+  });
+}
+
+/** Pull it back down — used to adopt a trip on a new device, or refresh. */
+export async function loadTripState<T>(cfg: DropboxConfig, tripId: string, readKey: string): Promise<RemoteTripState<T> | null> {
+  const rows = await rpc<RemoteTripState<T>[]>(cfg, "gts_load_trip_state", {
+    p_trip: tripId, p_key: readKey,
+  });
+  return rows[0] ?? null;
+}
+
+export interface RemoteTripListing<T> {
+  id: string;
+  writeKey: string;
+  readKey: string;
+  state: T | null;
+  updatedAt: string;
+}
+
+/** Every trip registered against this drop-box project — no key needed (see schema.sql). */
+export async function listTrips<T>(cfg: DropboxConfig): Promise<RemoteTripListing<T>[]> {
+  const rows = await rpc<{ id: string; write_key: string; read_key: string; state: T | null; updated_at: string }[]>(
+    cfg, "gts_list_trips", {},
+  );
+  return rows.map((r) => ({ id: r.id, writeKey: r.write_key, readKey: r.read_key, state: r.state, updatedAt: r.updated_at }));
+}
+
+/** Permanently removes a trip (and its cards/state) from the drop-box. */
+export function deleteTrip(cfg: DropboxConfig, tripId: string, readKey: string) {
+  return rpc<void>(cfg, "gts_delete_trip", { p_trip: tripId, p_key: readKey });
+}
+
 /**
  * Offline outbox: keeps trying to deliver the player's latest card until
  * the drop-box accepts it. Only the newest state matters (uploads are

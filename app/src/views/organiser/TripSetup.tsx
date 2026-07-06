@@ -2,6 +2,7 @@ import { useState } from "react";
 import { emptyRound, mutate, normaliseTrip, Trip } from "../../state/store";
 import { nav } from "../../router";
 import { Course, HOLES, MAX_PLAYERS, MAX_ROUNDS } from "../../engine";
+import { pushTripMeta } from "../../state/tripSync";
 
 export function TripSetup({ trip }: { trip: Trip }) {
   return (
@@ -34,6 +35,7 @@ function Roster({ trip }: { trip: Trip }) {
       t.players.push({ name: name.trim(), hcap: h });
       normaliseTrip(t);
     });
+    pushTripMeta(trip.id);
     setName("");
     setHcap("");
   };
@@ -48,11 +50,14 @@ function Roster({ trip }: { trip: Trip }) {
             {!locked && (
               <button
                 className="btn small danger"
-                onClick={() => mutate((d) => {
-                  const t = d.trips.find((x) => x.id === trip.id)!;
-                  t.players.splice(i, 1);
-                  normaliseTrip(t);
-                })}
+                onClick={() => {
+                  mutate((d) => {
+                    const t = d.trips.find((x) => x.id === trip.id)!;
+                    t.players.splice(i, 1);
+                    normaliseTrip(t);
+                  });
+                  pushTripMeta(trip.id);
+                }}
               >
                 remove
               </button>
@@ -82,10 +87,13 @@ function Rounds({ trip }: { trip: Trip }) {
       {trip.rounds.length < MAX_ROUNDS && (
         <button
           className="btn ghost"
-          onClick={() => mutate((d) => {
-            const t = d.trips.find((x) => x.id === trip.id)!;
-            t.rounds.push(emptyRound(t.players.length));
-          })}
+          onClick={() => {
+            mutate((d) => {
+              const t = d.trips.find((x) => x.id === trip.id)!;
+              t.rounds.push(emptyRound(t.players.length));
+            });
+            pushTripMeta(trip.id);
+          }}
           data-testid="add-round"
         >
           + Add round {trip.rounds.length + 1}
@@ -112,6 +120,7 @@ function CourseEditor({ trip, round }: { trip: Trip; round: number }) {
     mutate((d) => {
       d.trips.find((x) => x.id === trip.id)!.rounds[round].course = parsed;
     });
+    pushTripMeta(trip.id);
     setErr("");
     setOpen(false);
   };

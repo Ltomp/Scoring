@@ -6,6 +6,7 @@ export function startStubDropbox(port = 0) {
   const trips = new Map(); // id -> {writeKey, readKey}
   const cards = new Map(); // `${trip}:${round}:${player}` -> row
   const completed = new Set(); // `${trip}:${round}`
+  const tripState = new Map(); // id -> {state, updated_at}
 
   const server = http.createServer((req, res) => {
     const send = (code, body) => {
@@ -49,6 +50,34 @@ export function startStubDropbox(port = 0) {
         const key = `${args.p_trip}:${args.p_round}`;
         if (args.p_completed) completed.add(key);
         else completed.delete(key);
+        return send(204);
+      }
+      if (fn === "gts_save_trip_state") {
+        if (!trip || trip.readKey !== args.p_key) return send(401, { message: "bad trip or key" });
+        tripState.set(args.p_trip, { state: args.p_state, updated_at: new Date().toISOString() });
+        return send(204);
+      }
+      if (fn === "gts_load_trip_state") {
+        if (!trip || trip.readKey !== args.p_key) return send(401, { message: "bad trip or key" });
+        const row = tripState.get(args.p_trip);
+        return send(200, row ? [row] : []);
+      }
+      if (fn === "gts_list_trips") {
+        const rows = [...trips.entries()].map(([id, t]) => {
+          const s = tripState.get(id);
+          return {
+            id, write_key: t.writeKey, read_key: t.readKey,
+            state: s ? s.state : null, updated_at: s ? s.updated_at : new Date(0).toISOString(),
+          };
+        });
+        return send(200, rows);
+      }
+      if (fn === "gts_delete_trip") {
+        if (!trip || trip.readKey !== args.p_key) return send(401, { message: "bad trip or key" });
+        trips.delete(args.p_trip);
+        for (const k of [...cards.keys()]) if (k.startsWith(`${args.p_trip}:`)) cards.delete(k);
+        for (const k of [...completed]) if (k.startsWith(`${args.p_trip}:`)) completed.delete(k);
+        tripState.delete(args.p_trip);
         return send(204);
       }
       send(404, { message: "unknown rpc" });

@@ -3,7 +3,9 @@ import { CardSource, mutate, Trip, useAppState } from "../../state/store";
 import { nav } from "../../router";
 import { HOLES, RoundResult } from "../../engine";
 import { shareUrl } from "../../share/codec";
-import { completeRound, fetchCards } from "../../sync/dropbox";
+import { completeRound, submitCard } from "../../sync/dropbox";
+import { fetchAndMergeCards } from "../../state/cardSync";
+import { pullTripMeta, pushTripMeta } from "../../state/tripSync";
 import { ShareSheet } from "../../components/ShareSheet";
 import { orgCompute } from "./orgCompute";
 
@@ -14,29 +16,15 @@ export function RoundDashboard({ trip, round }: { trip: Trip; round: number }) {
   const [manualFor, setManualFor] = useState<number | null>(null);
   const [pollErr, setPollErr] = useState("");
 
-  // collect cards from the drop-box while the round is open
+  // collect cards AND any co-organiser's setup/penalty/completion changes
+  // while the round is open
   useEffect(() => {
     if (!trip.dropbox || !r || r.completed) return;
     let stop = false;
     const poll = async () => {
       try {
-        const rows = await fetchCards(trip.dropbox!, trip.id, trip.readKey, round);
-        if (stop) return;
-        setPollErr("");
-        mutate((d) => {
-          const t = d.trips.find((x) => x.id === trip.id)!;
-          const rd = t.rounds[round - 1];
-          if (!rd || rd.completed) return;
-          for (const row of rows) {
-            if (row.player >= t.players.length) continue;
-            const meta = rd.cardMeta[row.player];
-            if (meta?.source === "manual") continue; // organiser corrections win
-            const remoteAt = Date.parse(row.updated_at);
-            if (meta && meta.source !== "sync" && meta.updatedAt >= remoteAt) continue;
-            rd.cards[row.player] = row.scores;
-            rd.cardMeta[row.player] = { source: "sync", updatedAt: remoteAt, final: row.done };
-          }
-        });
+        await Promise.all([fetchAndMergeCards(trip, round), pullTripMeta(trip.id)]);
+        if (!stop) setPollErr("");
       } catch (e) {
         if (!stop) setPollErr(e instanceof Error ? e.message : String(e));
       }
@@ -86,6 +74,7 @@ export function RoundDashboard({ trip, round }: { trip: Trip; round: number }) {
       try { await completeRound(trip.dropbox, trip.id, trip.readKey, round, completed); }
       catch { /* local completion still stands; uploads stay blocked next poll */ }
     }
+    pushTripMeta(trip.id);
     if (completed) nav(`/org/t/${trip.id}/r/${round}/results`);
   };
 
@@ -287,9 +276,12 @@ function PenaltyPicker({ trip, round, player, tid }: { trip: Trip; round: number
       aria-label="card penalty"
       value={v}
       style={{ width: 86, padding: "6px 8px", fontSize: 12.5 }}
-      onChange={(e) => mutate((d) => {
-        d.trips.find((x) => x.id === trip.id)!.rounds[round - 1].penalties[player] = Number(e.target.value);
-      })}
+      onChange={(e) => {
+        mutate((d) => {
+          d.trips.find((x) => x.id === trip.id)!.rounds[round - 1].penalties[player] = Number(e.target.value);
+        });
+        pushTripMeta(trip.id);
+      }}
       data-testid={tid ?? `penalty-${player}`}
     >
       <option value={0}>pen 0</option>
@@ -312,8 +304,13 @@ function ManualCard({ trip, round, player, onDone }: { trip: Trip; round: number
     mutate((d) => {
       const rd = d.trips.find((x) => x.id === trip.id)!.rounds[round - 1];
       rd.cards[player] = scores;
-      rd.cardMeta[player] = { source: "manual", updatedAt: Date.now() };
+      rd.cardMeta[player] = { source: "manual", updatedAt: Date.now(), final: true };
     });
+    // so a paper card keyed on one device shows up on any other organiser device too
+    if (trip.dropbox) {
+      submitCard(trip.dropbox, trip.id, trip.writeKey, round, player, trip.players[player]?.name ?? "", scores, true)
+        .catch(() => { /* stays correct locally; will retry via the next fetch's local-wins rule */ });
+    }
     onDone();
   };
   return (

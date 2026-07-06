@@ -32,4 +32,20 @@ export interface CardPayload {
   scores: Card;
 }
 
-export type SharePayload = RoundPackPayload | CardPayload;
+/**
+ * "Organiser access" link: lets a second device (or a co-organiser) pick
+ * up this trip — roster, courses, penalties, round completion, and cards
+ * all pull automatically from the drop-box. Requires the trip to have a
+ * drop-box configured.
+ */
+export interface OrgAccessPayload {
+  v: 1;
+  kind: "org";
+  tripId: string;
+  tripName: string;
+  dropbox: DropboxConfig;
+  writeKey: string;
+  readKey: string;
+}
+
+export type SharePayload = RoundPackPayload | CardPayload | OrgAccessPayload;

@@ -1,14 +1,40 @@
+import { useEffect, useState } from "react";
 import { mutate, Trip, useAppState } from "../../state/store";
 import { nav } from "../../router";
 import { tiedOnNet } from "../../engine";
 import { computableRounds, lastActiveRound, orgCompute } from "./orgCompute";
 import { firstName } from "../player/PlayerHome";
+import { onTripSyncStatus, pullTripMeta, pushTripMeta, TripSyncStatus } from "../../state/tripSync";
+import { fetchAndMergeAllCards } from "../../state/cardSync";
+import { shareUrl } from "../../share/codec";
+import { ShareSheet } from "../../components/ShareSheet";
 
 export function TripHome({ trip }: { trip: Trip }) {
   useAppState();
+  const [sync, setSync] = useState<TripSyncStatus>("synced");
+  const [showAccess, setShowAccess] = useState(false);
   const upTo = lastActiveRound(trip);
   const res = upTo > 0 ? orgCompute(trip, upTo) : null;
   const nRounds = computableRounds(trip);
+
+  useEffect(() => onTripSyncStatus((id, s) => { if (id === trip.id) setSync(s); }), [trip.id]);
+
+  // pull the latest roster/courses/penalties/cards on open, and keep refreshing
+  // while this screen is up, so another device's edits show up here too
+  useEffect(() => {
+    if (!trip.dropbox) return;
+    let stop = false;
+    const pull = async () => {
+      try {
+        await pullTripMeta(trip.id);
+        await fetchAndMergeAllCards(trip);
+      } catch { /* stays on last-known-good state; will retry */ }
+    };
+    void pull();
+    const id = setInterval(() => { if (!stop) void pull(); }, 12000);
+    return () => { stop = true; clearInterval(id); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trip.id, !!trip.dropbox]);
 
   const order = res
     ? trip.players.map((_, i) => i).sort((a, b) => res.overallPos[a] - res.overallPos[b])
@@ -22,7 +48,14 @@ export function TripHome({ trip }: { trip: Trip }) {
           <div className="t">{trip.name} {trip.year}</div>
           <div className="s">{trip.players.length} players · {upTo}/{trip.rounds.length || 0} rounds played</div>
         </div>
-        <button className="btn small ghost" onClick={() => nav(`/org/t/${trip.id}/setup`)}>Setup</button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {trip.dropbox && (
+            sync === "synced" ? <span className="chip ok">synced ✓</span>
+            : sync === "offline" ? <span className="chip mute">offline</span>
+            : <span className="chip warn">syncing…</span>
+          )}
+          <button className="btn small ghost" onClick={() => nav(`/org/t/${trip.id}/setup`)}>Setup</button>
+        </div>
       </div>
       <main>
         {res && order.length > 0 && (
@@ -93,11 +126,41 @@ export function TripHome({ trip }: { trip: Trip }) {
         </div>
         </div>
 
+        {trip.dropbox ? (
+          <>
+            <button className="btn" onClick={() => setShowAccess(!showAccess)}>
+              {showAccess ? "Hide organiser access" : "Access this trip on another device"}
+            </button>
+            {showAccess && (
+              <ShareSheet
+                url={shareUrl({
+                  v: 1, kind: "org", tripId: trip.id, tripName: trip.name || "Golf Trip",
+                  dropbox: trip.dropbox, writeKey: trip.writeKey, readKey: trip.readKey,
+                })}
+                title={`Organiser access — ${trip.name}`}
+                qrLabel="Open on a laptop or a co-organiser's phone"
+              />
+            )}
+            <p className="hint" style={{ padding: "0 6px" }}>
+              This link gives full organiser access — roster, scores, penalties, the lot.
+              Only share it with people you want running the comp.
+            </p>
+          </>
+        ) : (
+          <p className="hint" style={{ padding: "0 6px" }}>
+            No drop-box on this trip, so it only lives on this device — use Backup/Restore
+            below to move it.
+          </p>
+        )}
+
         <div className="btn-row">
           <button className="btn ghost" onClick={() => backup(trip)}>Backup trip (JSON)</button>
           <button
             className="btn ghost"
-            onClick={() => mutate((d) => { d.trips.find((t) => t.id === trip.id)!.archived = !trip.archived; })}
+            onClick={() => {
+              mutate((d) => { d.trips.find((t) => t.id === trip.id)!.archived = !trip.archived; });
+              pushTripMeta(trip.id);
+            }}
           >
             {trip.archived ? "Unarchive" : "Archive trip"}
           </button>
