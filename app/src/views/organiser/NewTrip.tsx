@@ -3,13 +3,15 @@ import { createTrip, mutate, useAppState } from "../../state/store";
 import { nav } from "../../router";
 import { registerTrip } from "../../sync/dropbox";
 import { orgCompute } from "./orgCompute";
+import { DEFAULT_DROPBOX } from "../../dropboxConfig";
 
 export function NewTrip() {
   const { trips } = useAppState();
   const [name, setName] = useState("");
   const [year, setYear] = useState(String(new Date().getFullYear()));
-  const [url, setUrl] = useState(trips[0]?.dropbox?.url ?? "");
-  const [anonKey, setAnonKey] = useState(trips[0]?.dropbox?.anonKey ?? "");
+  const [url, setUrl] = useState(trips[0]?.dropbox?.url ?? DEFAULT_DROPBOX?.url ?? "");
+  const [anonKey, setAnonKey] = useState(trips[0]?.dropbox?.anonKey ?? DEFAULT_DROPBOX?.anonKey ?? "");
+  const [showDropbox, setShowDropbox] = useState(false);
   const [copyFrom, setCopyFrom] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -79,20 +81,32 @@ export function NewTrip() {
         </div>
 
         <div className="card" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <div>
-            <div className="label">Card drop-box (recommended)</div>
-            <p className="hint">
-              Your free Supabase project — markers' cards deliver themselves when
-              submitted. One-time setup is in the README. Without it, organisers key
-              every card by hand.
-            </p>
+          <div className="row">
+            <div>
+              <div className="label">Card drop-box</div>
+              <p className="hint" style={{ marginBottom: 0 }}>
+                {url && anonKey
+                  ? "Using the shared drop-box — markers' cards deliver themselves. Nothing to set up."
+                  : "No drop-box set — organisers will key every card by hand."}
+              </p>
+            </div>
+            {!showDropbox && (
+              <button className="btn small ghost" onClick={() => setShowDropbox(true)}>
+                {url && anonKey ? "Use my own" : "Add one"}
+              </button>
+            )}
           </div>
-          <label className="field"><span>Project URL</span>
-            <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://xxxx.supabase.co" data-testid="dropbox-url" />
-          </label>
-          <label className="field"><span>Anon (public) key</span>
-            <input value={anonKey} onChange={(e) => setAnonKey(e.target.value)} placeholder="eyJhbGciOi…" data-testid="dropbox-key" />
-          </label>
+          {showDropbox && (
+            <>
+              <label className="field"><span>Project URL</span>
+                <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://xxxx.supabase.co" data-testid="dropbox-url" />
+              </label>
+              <label className="field"><span>Anon (public) key</span>
+                <input value={anonKey} onChange={(e) => setAnonKey(e.target.value)} placeholder="eyJhbGciOi…" data-testid="dropbox-key" />
+              </label>
+              <p className="hint">Own Supabase project: paste its URL/key here (setup steps in the README), or clear both to run without auto-delivery.</p>
+            </>
+          )}
           {err && <p className="error-text">{err}</p>}
         </div>
 
