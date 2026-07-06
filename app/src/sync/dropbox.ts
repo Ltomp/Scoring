@@ -64,19 +64,27 @@ export function organiserSubmitCard(
 }
 
 export interface RemoteOwnCard {
-  scores: Card;
-  done: boolean;
-  updated_at: string;
+  scores: Card | null;
+  done: boolean | null;
+  updatedAt: string | null;
+  /** true once an organiser has completed this round — no card here yet still tells you this. */
+  roundCompleted: boolean;
 }
 
 /** A player reading back just their own card — never anyone else's, never the comp. */
 export async function fetchOwnCard(
   cfg: DropboxConfig, tripId: string, writeKey: string, round: number, player: number,
-): Promise<RemoteOwnCard | null> {
-  const rows = await rpc<RemoteOwnCard[]>(cfg, "gts_fetch_own_card", {
-    p_trip: tripId, p_key: writeKey, p_round: round, p_player: player,
-  });
-  return rows[0] ?? null;
+): Promise<RemoteOwnCard> {
+  const rows = await rpc<{ scores: Card | null; done: boolean | null; updated_at: string | null; round_completed: boolean }[]>(
+    cfg, "gts_fetch_own_card", { p_trip: tripId, p_key: writeKey, p_round: round, p_player: player },
+  );
+  const row = rows[0];
+  return {
+    scores: row?.scores ?? null,
+    done: row?.done ?? null,
+    updatedAt: row?.updated_at ?? null,
+    roundCompleted: row?.round_completed ?? false,
+  };
 }
 
 export function completeRound(cfg: DropboxConfig, tripId: string, readKey: string, round: number, completed: boolean) {

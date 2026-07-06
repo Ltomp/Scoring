@@ -31,8 +31,9 @@ export function MyCard() {
 
   if (!pack || my == null) { nav("/player"); return null; }
   const me = pack.players[my];
-  const totalPts = remote
-    ? remote.scores.reduce((a, s, h) => a + holePoints(s, pack.course.pars[h], pack.course.sis[h], me.daily), 0)
+  const scores = remote?.scores ?? null;
+  const totalPts = scores
+    ? scores.reduce((a, s, h) => a + holePoints(s, pack.course.pars[h], pack.course.sis[h], me.daily), 0)
     : 0;
 
   return (
@@ -57,7 +58,13 @@ export function MyCard() {
         )}
         {status === "loading" && <div className="card hint">Checking…</div>}
         {status === "error" && <p className="error-text" style={{ padding: "0 4px" }}>Couldn't reach the drop-box: {err}</p>}
-        {status === "done" && !remote && (
+        {status === "done" && remote?.roundCompleted && (
+          <div className="card">
+            <div className="label">Round completed</div>
+            <p className="hint" style={{ fontSize: 13.5 }}>Your organiser has locked this round.</p>
+          </div>
+        )}
+        {status === "done" && !scores && (
           <div className="card">
             <div className="label">Nothing recorded yet</div>
             <p className="hint" style={{ fontSize: 13.5 }}>
@@ -66,13 +73,13 @@ export function MyCard() {
             </p>
           </div>
         )}
-        {status === "done" && remote && (
+        {status === "done" && scores && (
           <>
             <div className="card hero">
               <div className="label">Your total</div>
               <div className="big">{totalPts} pts</div>
               <div className="meta">
-                {remote.done ? "Submitted by your marker" : "Still a draft — not yet submitted"}
+                {remote!.done ? "Submitted by your marker" : "Still a draft — not yet submitted"}
                 {" · "}h'cap {me.daily}
               </div>
             </div>
@@ -81,7 +88,7 @@ export function MyCard() {
                 <div className="holes-strip" style={{ marginBottom: off === 0 ? 4 : 0 }} key={off}>
                   {Array.from({ length: 9 }, (_, i) => {
                     const h = off + i;
-                    const s = remote.scores[h];
+                    const s = scores[h];
                     const hp = s ? holePoints(s, pack.course.pars[h], pack.course.sis[h], me.daily) : 0;
                     return (
                       <div
