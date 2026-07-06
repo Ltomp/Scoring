@@ -52,9 +52,10 @@ by countback on the latest round played.
 
 **Handicapping** — after every round each player's trip handicap moves by
 the *Amount* for their daily finishing position. The table auto-scales to
-the field: top half get cuts, bottom half go up, 0.25 per position step,
-capped at ±2. The amounts are yellow — overtype them before the trip if you
-want different steps (regenerating the workbook restores the formulas).
+the field: the winner always loses 2 and last place always gains 2, with
+everyone between spread in equal steps. The amounts are yellow — overtype
+them before the trip if you want different steps (regenerating the workbook
+restores the formulas).
 Each day's playing handicap is the running handicap rounded to a whole
 number; stroke allocation handles handicaps up to 54 (three strokes on the
 lowest SI holes).

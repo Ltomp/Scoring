@@ -44,10 +44,9 @@ def hole_pts(score, par, si, daily_hc):
 
 
 def adjustment(pos, n):
-    half = n // 2
-    if pos <= half:
-        return -min(2, 0.25 * (half - pos + 1))
-    return min(2, 0.25 * (pos - (n - half)))
+    if n <= 1:
+        return 0
+    return 2 * (2 * (pos - 1) / (n - 1) - 1)
 
 
 class Model:

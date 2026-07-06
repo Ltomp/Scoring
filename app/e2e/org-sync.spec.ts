@@ -53,8 +53,9 @@ test("organiser access link syncs a trip to a second device with no JSON transfe
   await page1.getByTestId("mc-save-0").click();
   await expect(page1.getByTestId("card-list")).toContainText("47 pts");
 
-  // grab the organiser access link
+  // grab the organiser access link (now on the Setup screen)
   await page1.getByRole("link", { name: /‹ Sync Test Cup/ }).click();
+  await page1.getByRole("button", { name: "Setup" }).click();
   await page1.getByRole("button", { name: /Access this trip on another device/ }).click();
   const accessUrl = await page1.getByTestId("share-url").inputValue();
   expect(accessUrl).toContain("#/i/");
@@ -106,6 +107,7 @@ test("a trip nobody sent a link for still shows up on #/org, and Delete removes 
   await page1.getByTestId("create-trip").click();
   await page1.getByTestId("setup-done").click();
 
+  await page1.getByRole("button", { name: "Setup" }).click();
   await page1.getByRole("button", { name: /Access this trip on another device/ }).click();
   const accessUrl = await page1.getByTestId("share-url").inputValue();
 
@@ -113,6 +115,7 @@ test("a trip nobody sent a link for still shows up on #/org, and Delete removes 
   const dev2 = await browser.newContext({ viewport: { width: 390, height: 760 } });
   const page2 = await dev2.newPage();
   await page2.goto(accessUrl);
+  await page2.getByRole("button", { name: "Setup" }).click();
   await expect(page2.getByRole("button", { name: /Access this trip on another device/ })).toBeVisible({ timeout: 20000 });
 
   // ---- device 3: an unrelated organiser creates Trip B on the SAME project — no link ever shared
@@ -181,6 +184,7 @@ test("a trip with no state yet stays invisible on #/org until state appears", as
   await page1.getByTestId("dropbox-key").fill("stub-key");
   await page1.getByTestId("create-trip").click();
   await page1.getByTestId("setup-done").click();
+  await page1.getByRole("button", { name: "Setup" }).click();
   await page1.getByRole("button", { name: /Access this trip on another device/ }).click();
   const accessUrl = await page1.getByTestId("share-url").inputValue();
 
@@ -188,6 +192,7 @@ test("a trip with no state yet stays invisible on #/org until state appears", as
   const dev2 = await browser.newContext({ viewport: { width: 390, height: 760 } });
   const page2 = await dev2.newPage();
   await page2.goto(accessUrl);
+  await page2.getByRole("button", { name: "Setup" }).click();
   await expect(page2.getByRole("button", { name: /Access this trip on another device/ })).toBeVisible({ timeout: 20000 });
 
   // the stateless trip is registered on the same project, but stays invisible — no clutter
@@ -256,15 +261,16 @@ test("connecting a local-only trip to a drop-box pushes its setup and its cards"
   await page1.getByTestId("mc-save-0").click();
   await expect(page1.getByTestId("card-list")).toContainText("47 pts");
 
-  // ---- back on Trip Home, connect a drop-box to this now-existing trip
+  // ---- back on Trip Setup, connect a drop-box to this now-existing trip
   await page1.getByRole("link", { name: /‹ Reconnect Cup/ }).click();
+  await page1.getByRole("button", { name: "Setup" }).click();
   await expect(page1.getByTestId("show-connect-dropbox")).toBeVisible();
   await page1.getByTestId("show-connect-dropbox").click();
   await page1.getByTestId("dropbox-url").fill(stub.url);
   await page1.getByTestId("dropbox-key").fill("stub-key");
   await page1.getByTestId("connect-dropbox").click();
 
-  // once connected, the normal access-link UI takes over
+  // once connected, the normal access-link UI takes over (still on Setup)
   await page1.getByRole("button", { name: /Access this trip on another device/ }).click();
   const accessUrl = await page1.getByTestId("share-url").inputValue();
 
@@ -328,7 +334,7 @@ test("a round that arrives already-completed with no local cards still fetches t
   await expect(page1).toHaveURL(/\/results$/);
 
   // ---- connect a drop-box now that the round is already locked
-  await page1.goto(`${APP}#/org/t/${tripId}`);
+  await page1.goto(`${APP}#/org/t/${tripId}/setup`);
   await expect(page1.getByTestId("show-connect-dropbox")).toBeVisible();
   await page1.getByTestId("show-connect-dropbox").click();
   await page1.getByTestId("dropbox-url").fill(stub.url);
@@ -405,7 +411,7 @@ test("an organiser can still correct a card after completing the round, and it s
   await expect(page1.getByTestId("card-list")).toContainText("46 pts");
 
   // ---- a second device sees the correction, not the original 47
-  await page1.goto(`${APP}#/org/t/${tripId}`);
+  await page1.goto(`${APP}#/org/t/${tripId}/setup`);
   const dev2 = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page2 = await dev2.newPage();
   await page2.goto(await accessUrlFor(page1));

@@ -453,8 +453,7 @@ def build_handicapping(wb):
         style(ws.cell(row=row, column=1), fill=SUB_FILL).value = p
         amt = style(ws.cell(row=row, column=2), fill=INPUT_FILL, fmt="+0.00;-0.00;0", unlocked=True)
         amt.value = (f'=IF(OR($B$1=0,A{row}>$B$1),"",'
-                     f"IF(A{row}<=INT($B$1/2),-MIN(2,0.25*(INT($B$1/2)-A{row}+1)),"
-                     f"MIN(2,0.25*(A{row}-($B$1-INT($B$1/2))))))")
+                     f'IF($B$1<=1,0,2*(2*(A{row}-1)/($B$1-1)-1)))')
 
     ws.column_dimensions["A"].width = 9
     ws.column_dimensions["B"].width = 22
@@ -546,9 +545,10 @@ INSTRUCTIONS = [
     ("", False),
     ("HANDICAPPING", True),
     ("Each player's handicap moves after every round by the Amount shown for their daily", False),
-    ("position (Handicapping sheet). The table auto-scales to the number of players — top half", False),
-    ("get cuts, bottom half go up, 0.25 per position, capped at ±2. You may overtype the", False),
-    ("amounts (yellow) before the trip if you want different steps.", False),
+    ("position (Handicapping sheet). The table auto-scales to the number of players — the", False),
+    ("winner always loses 2 and last place always gains 2, with everyone between spread in", False),
+    ("equal steps. You may overtype the amounts (yellow) before the trip if you want different", False),
+    ("steps.", False),
     ("The Daily H'cap used on the cards is the running handicap rounded to a whole number.", False),
     ("", False),
     ("INTEGRITY", True),
