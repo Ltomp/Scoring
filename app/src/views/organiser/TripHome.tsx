@@ -28,6 +28,11 @@ export function TripHome({ trip }: { trip: Trip }) {
       try {
         await pullTripMeta(trip.id);
         await fetchAndMergeAllCards(trip);
+        // also push: a trip opened here but never edited since getting a
+        // drop-box (or predating trip-state syncing entirely) would otherwise
+        // never get a gts_trip_state row, so #/org's auto-discovery could
+        // never hydrate it on another device. Harmless no-op once it exists.
+        pushTripMeta(trip.id);
       } catch { /* stays on last-known-good state; will retry */ }
     };
     void pull();

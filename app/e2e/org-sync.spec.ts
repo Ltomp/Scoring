@@ -143,3 +143,70 @@ test("a trip nobody sent a link for still shows up on #/org, and Delete removes 
   await page2.goto(`${APP}#/org`);
   await expect(page2.getByText("Trip B")).not.toBeVisible({ timeout: 20000 }); // gone from the drop-box, not just hidden locally
 });
+
+/**
+ * The point of this test: a trip that predates trip-state syncing (or whose
+ * owning device just hasn't opened it since getting a drop-box) is registered
+ * in the drop-box but has no gts_trip_state row yet — this is exactly what
+ * happened to a real trip created early in this app's life, before trip-meta
+ * syncing existed: #/org discovered it but could only show a confusing empty
+ * "(unnamed trip) · 0 players" shell, because there was nothing to hydrate it
+ * from. Discovery must not surface a trip at all until it actually has state
+ * to show, and once state does appear (e.g. its owning device is finally
+ * opened, which now pushes on every view — see TripHome.tsx), the next
+ * #/org visit picks it up correctly, with no stuck placeholder ever shown.
+ */
+test("a trip with no state yet stays invisible on #/org until state appears", async ({ browser }) => {
+  test.setTimeout(60000);
+  const stub = await startStubDropbox();
+  const tripId = "11111111-1111-1111-1111-111111111111";
+  const writeKey = "hollow-write-key";
+  const readKey = "hollow-read-key";
+
+  // simulate a trip that predates trip-state syncing: registered, no state ever pushed
+  await fetch(`${stub.url}/rest/v1/rpc/gts_register_trip`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ p_trip: tripId, p_write_key: writeKey, p_read_key: readKey }),
+  });
+
+  // ---- device 1: create an unrelated trip on the same project, just so device 2 learns about it
+  const dev1 = await browser.newContext({ viewport: { width: 390, height: 760 } });
+  const page1 = await dev1.newPage();
+  await page1.goto(`${APP}#/org`);
+  await page1.getByTestId("new-trip").click();
+  await page1.getByTestId("trip-name").fill("Anchor Trip");
+  await page1.getByRole("button", { name: /Use my own/ }).click();
+  await page1.getByTestId("dropbox-url").fill(stub.url);
+  await page1.getByTestId("dropbox-key").fill("stub-key");
+  await page1.getByTestId("create-trip").click();
+  await page1.getByTestId("setup-done").click();
+  await page1.getByRole("button", { name: /Access this trip on another device/ }).click();
+  const accessUrl = await page1.getByTestId("share-url").inputValue();
+
+  // ---- device 2 adopts the anchor trip (this is how it learns about the project)
+  const dev2 = await browser.newContext({ viewport: { width: 390, height: 760 } });
+  const page2 = await dev2.newPage();
+  await page2.goto(accessUrl);
+  await expect(page2.getByRole("button", { name: /Access this trip on another device/ })).toBeVisible({ timeout: 20000 });
+
+  // the stateless trip is registered on the same project, but stays invisible — no clutter
+  await page2.goto(`${APP}#/org`);
+  await expect(page2.getByText("Anchor Trip")).toBeVisible({ timeout: 20000 });
+  await expect(page2.getByText("(unnamed trip)")).not.toBeVisible();
+
+  // ---- the trip finally gets real state pushed, as if its owning device opened it
+  await fetch(`${stub.url}/rest/v1/rpc/gts_save_trip_state`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      p_trip: tripId,
+      p_key: readKey,
+      p_state: { name: "Late Bloomers Cup", year: "2026", players: [{ name: "Ivy Irwin", hcap: 9 }], archived: false, roundsMeta: [] },
+    }),
+  });
+
+  // ---- device 2 revisits #/org: it appears correctly, first time, no placeholder ever shown
+  await page2.goto(`${APP}#/org`);
+  await expect(page2.getByText("Late Bloomers Cup")).toBeVisible({ timeout: 20000 });
+});
