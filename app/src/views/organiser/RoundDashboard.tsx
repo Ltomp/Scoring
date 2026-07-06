@@ -17,9 +17,12 @@ export function RoundDashboard({ trip, round }: { trip: Trip; round: number }) {
   const [pollErr, setPollErr] = useState("");
 
   // collect cards AND any co-organiser's setup/penalty/completion changes
-  // while the round is open
+  // while the round is open. A completed round with cards already on this
+  // device stops polling (it's locked) — but one that arrived already
+  // completed via trip-meta sync with no local cards yet still needs a
+  // fetch, or its scores would never show up here.
   useEffect(() => {
-    if (!trip.dropbox || !r || r.completed) return;
+    if (!trip.dropbox || !r || (r.completed && r.cards.some(Boolean))) return;
     let stop = false;
     const poll = async () => {
       try {
