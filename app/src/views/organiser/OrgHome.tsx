@@ -26,9 +26,10 @@ function knownDropboxes(trips: Trip[]): DropboxConfig[] {
 
 /**
  * #/org auto-discovers every trip on a known drop-box project — no link/QR
- * handshake required (see supabase/schema.sql's gts_list_trips). Trips
- * already known locally are left untouched; anything new is adopted and
- * hydrated in place.
+ * handshake required (see supabase/schema.sql's gts_list_trips). A trip
+ * with real local data (a name) is left untouched; anything new, or a
+ * hollow placeholder from an earlier discovery that found no state yet,
+ * is (re)hydrated once state is actually available.
  */
 function useTripDiscovery() {
   const [checking, setChecking] = useState(false);
@@ -44,15 +45,25 @@ function useTripDiscovery() {
           const rows = await listTrips<TripMeta>(cfg);
           if (cancelled) return;
           for (const row of rows) {
-            if (getState().trips.some((t) => t.id === row.id)) continue;
+            const existing = getState().trips.find((t) => t.id === row.id);
+            // a trip already known locally with an empty name is a hollow
+            // placeholder from an earlier discovery that found no state yet
+            // (e.g. it predates trip-state syncing, or was opened on its
+            // owning device before that device ever pushed) — keep checking
+            // it rather than ignoring it forever once state does appear.
+            if (existing && existing.name !== "") continue;
+            if (!row.state) continue;
             mutate((d) => {
-              if (d.trips.some((t) => t.id === row.id)) return;
-              const trip = adoptTrip({
-                v: 1, kind: "org", tripId: row.id, tripName: row.state?.name ?? "",
-                dropbox: cfg, writeKey: row.writeKey, readKey: row.readKey,
-              });
-              if (row.state) applyTripMeta(trip, row.state);
-              d.trips.unshift(trip);
+              let trip = d.trips.find((t) => t.id === row.id);
+              if (trip && trip.name !== "") return;
+              if (!trip) {
+                trip = adoptTrip({
+                  v: 1, kind: "org", tripId: row.id, tripName: row.state!.name,
+                  dropbox: cfg, writeKey: row.writeKey, readKey: row.readKey,
+                });
+                d.trips.unshift(trip);
+              }
+              applyTripMeta(trip, row.state!);
             });
             const trip = getState().trips.find((t) => t.id === row.id);
             if (trip) fetchAndMergeAllCards(trip).catch(() => {});
