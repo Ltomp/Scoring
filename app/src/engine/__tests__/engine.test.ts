@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import fixture from "../../../fixtures/trip-fixture.json";
-import { adjustmentTable, computeTrip, holePoints, strokesReceived, roundHalf, TripInput } from "..";
+import { adjustment, adjustmentTable, computeTrip, holePoints, strokesReceived, roundHalf, TripInput } from "..";
 
 const trip = fixture.trip as unknown as TripInput;
 const exp = fixture.expected;
@@ -75,5 +75,18 @@ describe("primitives", () => {
     expect(holePoints(0, 4, 7, 15)).toBe(0); // wipe
     expect(holePoints(9, 4, 18, 5)).toBe(0); // blowout floors at 0
     expect(holePoints(3, 4, 1, 38)).toBe(6); // 3 strokes, gross birdie
+  });
+
+  it("scales the handicap adjustment cap when given a custom max", () => {
+    // default (maxAdj=2) unaffected by the new optional param
+    expect(adjustment(1, 32)).toBe(adjustment(1, 32, 2));
+    // large field, custom cap of 1 actually bites (0.25*20=5 would exceed it)
+    expect(adjustment(1, 40, 1)).toBe(-1);
+    expect(adjustment(40, 40, 1)).toBe(1);
+    // small field: the step simply runs out before a generous custom cap of 4
+    expect(adjustment(1, 8, 4)).toBe(-1);
+    expect(adjustment(8, 8, 4)).toBe(1);
+    // full table for a small field with a small custom cap
+    expect(adjustmentTable(4, 1)).toEqual([-0.5, -0.25, 0.25, 0.5]);
   });
 });

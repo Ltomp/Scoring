@@ -14,6 +14,7 @@ export function Results({ trip, round }: { trip: Trip; round: number }) {
 
   const rr = res.rounds[round - 1];
   const n = trip.players.length;
+  const maxAdj = trip.maxAdjustment ?? 2;
   const anyPlayed = rr.played.some(Boolean);
   const order = trip.players.map((_, i) => i).sort((a, b) => rr.pos[a] - rr.pos[b]);
 
@@ -71,8 +72,8 @@ export function Results({ trip, round }: { trip: Trip; round: number }) {
                   {r.penalties[p] > 0 && rr.played[p] && <span className="chip pen">pen</span>}
                 </span>
                 <span className="p-pts num" data-testid={`net-${p}`}>{rr.net[p]}</span>
-                <span className={`hc-move num ${adjustment(rr.pos[p], n) < 0 ? "down" : "up"}`}>
-                  {anyPlayed ? fmtAdj(adjustment(rr.pos[p], n)) : "—"}
+                <span className={`hc-move num ${adjustment(rr.pos[p], n, maxAdj) < 0 ? "down" : "up"}`}>
+                  {anyPlayed ? fmtAdj(adjustment(rr.pos[p], n, maxAdj)) : "—"}
                 </span>
               </div>
             ))}
@@ -83,7 +84,7 @@ export function Results({ trip, round }: { trip: Trip; round: number }) {
           <div className="card divided" data-testid="hcap-results">
             {trip.players.map((p, i) => {
               const into = res.hcInto[round - 1][i];
-              const after = anyPlayed ? into + adjustment(rr.pos[i], n) : into;
+              const after = anyPlayed ? into + adjustment(rr.pos[i], n, maxAdj) : into;
               return (
                 <div className="row" key={i}>
                   <span className="p-name">{p.name} <span className="p-sub num">daily {res.daily[round - 1][i]}</span></span>
