@@ -145,6 +145,11 @@ export function PlayerHome() {
       <button className="btn small ghost" onClick={() => nav("/player/mine")} data-testid="review-mine">
         Review my scores (read-only)
       </button>
+      {pack.dropbox && (
+        <button className="btn small ghost" onClick={() => nav("/player/rounds")} data-testid="my-rounds">
+          My rounds this trip
+        </button>
+      )}
       {submitted ? (
         <>
           <div className="card">
