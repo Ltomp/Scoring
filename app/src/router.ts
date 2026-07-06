@@ -6,6 +6,8 @@ import { useSyncExternalStore } from "react";
  *   #/player               player home (today)
  *   #/player/score         score entry
  *   #/player/submit        review & submit the marked card
+ *   #/player/mine          read-only view of my own card, this round
+ *   #/player/rounds        read-only history of my own rounds this trip
  *   #/org                  trips list
  *   #/org/new              new trip
  *   #/org/t/:id            trip home (rounds + leaderboard)

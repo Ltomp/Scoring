@@ -60,6 +60,11 @@ export interface PlayerState {
   myIndex: number | null;
   /** keyed `${tripId}:${round}` */
   cards: Record<string, PlayerCardState>;
+  /** every round pack this device has ever opened, keyed `${tripId}:${round}` —
+   *  unlike `pack` (which the next round's link overwrites), this never shrinks,
+   *  so "My rounds" can show a past round's course + daily h'cap context even
+   *  after a newer pack has replaced the live `pack` slot */
+  roundHistory: Record<string, RoundPackPayload>;
 }
 
 export interface AppState {
@@ -74,11 +79,15 @@ const KEY = "gts.state.v1";
 function load(): AppState {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return JSON.parse(raw) as AppState;
+    if (raw) {
+      const parsed = JSON.parse(raw) as AppState;
+      parsed.player.roundHistory ??= {}; // older saved state predates this field
+      return parsed;
+    }
   } catch {
     /* corrupted or unavailable storage -> start clean */
   }
-  return { trips: [], player: { pack: null, myIndex: null, cards: {} } };
+  return { trips: [], player: { pack: null, myIndex: null, cards: {}, roundHistory: {} } };
 }
 
 let state: AppState = load();

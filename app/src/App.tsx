@@ -9,6 +9,7 @@ import { PlayerHome } from "./views/player/PlayerHome";
 import { ScoreEntry } from "./views/player/ScoreEntry";
 import { SubmitRound } from "./views/player/SubmitRound";
 import { MyCard } from "./views/player/MyCard";
+import { MyRounds } from "./views/player/MyRounds";
 import { OrgHome } from "./views/organiser/OrgHome";
 import { NewTrip } from "./views/organiser/NewTrip";
 import { TripHome } from "./views/organiser/TripHome";
@@ -36,6 +37,7 @@ export function App(): JSX.Element {
           d.player.pack = payload;
           const k = playerCardKey(payload.tripId, payload.round);
           if (!d.player.cards[k]) d.player.cards[k] = emptyPlayerCard();
+          d.player.roundHistory[k] = payload;
         });
         nav("/player");
       } else if (payload.kind === "org") {
@@ -85,6 +87,7 @@ export function App(): JSX.Element {
     if (p1 === "score") view = <ScoreEntry />;
     else if (p1 === "submit") view = <SubmitRound />;
     else if (p1 === "mine") view = <MyCard />;
+    else if (p1 === "rounds") view = <MyRounds />;
     else view = <PlayerHome />;
   } else if (p0 === "org") {
     const trip = p1 === "t" && p2 ? state.trips.find((t) => t.id === p2) : undefined;
