@@ -281,3 +281,76 @@ test("connecting a local-only trip to a drop-box pushes its setup and its cards"
   await page2.getByRole("button", { name: /^Round 1 / }).click();
   await expect(page2.getByTestId("dg-pts-0")).toHaveText("47", { timeout: 20000 });
 });
+
+/**
+ * Regression test: fetchAndMergeCards skipped fetching entirely once a
+ * round was marked completed, as an optimisation so a device stops polling
+ * a locked round it has already fully fetched. But a round that arrives
+ * ALREADY completed via trip-meta sync — exactly what happens connecting an
+ * already-finished trip to a drop-box, or discovering one on #/org — had
+ * never fetched anything yet, so that same guard meant its cards were never
+ * fetched at all: Trip Home showed "completed ✓" with "0/n cards" forever.
+ */
+test("a round that arrives already-completed with no local cards still fetches them", async ({ browser }) => {
+  test.setTimeout(60000);
+  const stub = await startStubDropbox();
+
+  // ---- device 1: create a trip with no drop-box, key a card, then COMPLETE the round
+  const dev1 = await browser.newContext({ viewport: { width: 390, height: 760 } });
+  const page1 = await dev1.newPage();
+  await page1.goto(`${APP}#/org`);
+  await page1.getByTestId("new-trip").click();
+  await page1.getByTestId("trip-name").fill("Already Done Cup");
+  await page1.getByRole("button", { name: /Use my own/ }).click();
+  await page1.getByTestId("dropbox-url").fill("");
+  await page1.getByTestId("dropbox-key").fill("");
+  await page1.getByTestId("create-trip").click();
+
+  await page1.getByTestId("player-name").fill("Gail Gordon");
+  await page1.getByTestId("player-hcap").fill("11");
+  await page1.getByTestId("add-player").click();
+
+  await page1.getByTestId("add-round").click();
+  await page1.getByTestId("course-name-0").fill("Already Done Links");
+  await page1.getByTestId("course-paste-0").fill(
+    `${Array(18).fill(4).join(" ")}\n${Array.from({ length: 18 }, (_, i) => i + 1).join(" ")}`,
+  );
+  await page1.getByTestId("course-save-0").click();
+  await page1.getByTestId("setup-done").click();
+  const tripId = page1.url().match(/\/org\/t\/([^/]+)/)![1];
+
+  await page1.getByRole("button", { name: /^Round 1 / }).click();
+  await page1.getByRole("button", { name: "key card" }).first().click();
+  for (let h = 0; h < 18; h++) await page1.getByTestId(`mc-0-${h}`).fill("4");
+  await page1.getByTestId("mc-save-0").click();
+  await expect(page1.getByTestId("card-list")).toContainText("47 pts");
+  await page1.getByTestId("complete-round").click(); // round is now completed BEFORE any drop-box exists — navigates to Results
+  await expect(page1).toHaveURL(/\/results$/);
+
+  // ---- connect a drop-box now that the round is already locked
+  await page1.goto(`${APP}#/org/t/${tripId}`);
+  await expect(page1.getByTestId("show-connect-dropbox")).toBeVisible();
+  await page1.getByTestId("show-connect-dropbox").click();
+  await page1.getByTestId("dropbox-url").fill(stub.url);
+  await page1.getByTestId("dropbox-key").fill("stub-key");
+  await page1.getByTestId("connect-dropbox").click();
+  await expect(page1.getByRole("button", { name: /Access this trip on another device/ })).toBeVisible();
+
+  // ---- device 2 discovers the trip via #/org — never sent a link at all
+  const dev2 = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page2 = await dev2.newPage();
+  await page2.goto(await accessUrlFor(page1));
+  await page2.getByRole("button", { name: "Setup" }).click();
+  await expect(page2.getByText("Gail Gordon").first()).toBeVisible({ timeout: 20000 });
+  await page2.getByTestId("setup-done").click();
+
+  // the round shows completed AND its card actually arrived — not "0/1 cards"
+  await expect(page2.getByText("1/1 cards")).toBeVisible({ timeout: 20000 });
+  await page2.getByRole("button", { name: /^Round 1 / }).click();
+  await expect(page2.getByTestId("dg-pts-0")).toHaveText("47", { timeout: 20000 });
+});
+
+async function accessUrlFor(page: import("@playwright/test").Page): Promise<string> {
+  await page.getByRole("button", { name: /Access this trip on another device/ }).click();
+  return page.getByTestId("share-url").inputValue();
+}
