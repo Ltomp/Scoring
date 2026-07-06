@@ -27,6 +27,9 @@ export interface Trip {
   writeKey: string;
   readKey: string;
   archived: boolean;
+  /** cap on the daily handicap adjustment (default 2); older saved trips
+   *  predate this field, so always read it as `trip.maxAdjustment ?? 2` */
+  maxAdjustment: number;
 }
 
 export interface PlayerCardState {
@@ -138,6 +141,7 @@ export function createTrip(
     writeKey: randomKey(),
     readKey: randomKey(),
     archived: false,
+    maxAdjustment: 2,
   };
 }
 
@@ -155,6 +159,7 @@ export function adoptTrip(payload: OrgAccessPayload): Trip {
     writeKey: payload.writeKey,
     readKey: payload.readKey,
     archived: false,
+    maxAdjustment: 2,
   };
 }
 

@@ -21,6 +21,7 @@ export interface TripMeta {
   players: { name: string; hcap: number }[];
   archived: boolean;
   roundsMeta: { course: Course | null; penalties: number[]; completed: boolean }[];
+  maxAdjustment?: number;
 }
 
 export function tripMetaOf(t: Trip): TripMeta {
@@ -30,6 +31,7 @@ export function tripMetaOf(t: Trip): TripMeta {
     players: t.players,
     archived: t.archived,
     roundsMeta: t.rounds.map((r) => ({ course: r.course, penalties: r.penalties, completed: r.completed })),
+    maxAdjustment: t.maxAdjustment,
   };
 }
 
@@ -39,6 +41,7 @@ export function applyTripMeta(t: Trip, m: TripMeta): void {
   t.year = m.year;
   t.archived = m.archived;
   t.players = m.players;
+  t.maxAdjustment = m.maxAdjustment ?? 2;
   const old = t.rounds;
   t.rounds = m.roundsMeta.slice(0, MAX_ROUNDS).map((rm, i) => ({
     course: rm.course,

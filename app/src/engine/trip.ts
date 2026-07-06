@@ -9,6 +9,7 @@ import { computeRound } from "./round";
  */
 export function computeTrip(input: TripInput): TripResult {
   const n = input.players.length;
+  const maxAdj = input.maxAdjustment ?? 2;
   const hcInto: number[][] = [];
   const daily: number[][] = [];
   const rounds: RoundResult[] = [];
@@ -26,7 +27,7 @@ export function computeTrip(input: TripInput): TripResult {
     });
     rounds.push(res);
     const active = res.played.some(Boolean);
-    hc = hc.map((h, p) => h + (active ? adjustment(res.pos[p], n) : 0));
+    hc = hc.map((h, p) => h + (active ? adjustment(res.pos[p], n, maxAdj) : 0));
   }
 
   const totals = Array.from({ length: n }, (_, p) =>

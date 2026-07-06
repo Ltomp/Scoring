@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { emptyRound, mutate, normaliseTrip, Trip } from "../../state/store";
 import { nav } from "../../router";
-import { Course, HOLES, MAX_PLAYERS, MAX_ROUNDS } from "../../engine";
+import { adjustmentTable, Course, HOLES, MAX_PLAYERS, MAX_ROUNDS } from "../../engine";
 import { pushTripMeta } from "../../state/tripSync";
 
 export function TripSetup({ trip }: { trip: Trip }) {
@@ -14,11 +14,72 @@ export function TripSetup({ trip }: { trip: Trip }) {
       </div>
       <main>
         <Roster trip={trip} />
+        <HandicapAdjustment trip={trip} />
         <Rounds trip={trip} />
         <button className="btn" onClick={() => nav(`/org/t/${trip.id}`)} data-testid="setup-done">Done ›</button>
       </main>
     </>
   );
+}
+
+function HandicapAdjustment({ trip }: { trip: Trip }) {
+  const saved = trip.maxAdjustment ?? 2;
+  const [val, setVal] = useState(String(saved));
+  const n = trip.players.length;
+  const parsed = Number(val);
+  const valid = Number.isFinite(parsed) && parsed > 0;
+  const previewMax = valid ? parsed : saved;
+
+  const onChange = (v: string) => {
+    setVal(v);
+    const num = Number(v);
+    if (Number.isFinite(num) && num > 0) {
+      mutate((d) => { d.trips.find((x) => x.id === trip.id)!.maxAdjustment = num; });
+      pushTripMeta(trip.id);
+    }
+  };
+
+  return (
+    <div className="card" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div className="label">Handicap adjustment</div>
+      <p className="hint" style={{ marginTop: -4 }}>
+        Enter the amount lost by the round winner (and gained by last place) as a
+        positive number — everyone in between is spread 0.25 per rank from the
+        middle of the field, so the table below auto-scales to your roster size.
+      </p>
+      <label className="field"><span>Max adjustment</span>
+        <input
+          inputMode="decimal"
+          value={val}
+          onChange={(e) => onChange(e.target.value)}
+          data-testid="max-adjustment"
+        />
+      </label>
+      {!valid && <p className="error-text">Enter a positive number.</p>}
+      {n > 0 ? (
+        <div className="mini-table">
+          <table style={{ width: "100%" }}>
+            <thead><tr><th>Position</th><th>Adjustment</th></tr></thead>
+            <tbody>
+              {adjustmentTable(n, previewMax).map((a, i) => (
+                <tr key={i}>
+                  <td className="num">{i + 1}</td>
+                  <td className="num" data-testid={`adj-pos-${i + 1}`}>{fmtAdj(a)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="hint">Add players to see the adjustment table.</p>
+      )}
+    </div>
+  );
+}
+
+function fmtAdj(a: number): string {
+  const r = Math.round(a * 100) / 100;
+  return r === 0 ? "0" : r > 0 ? `+${r}` : String(r);
 }
 
 function Roster({ trip }: { trip: Trip }) {

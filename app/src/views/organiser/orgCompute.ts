@@ -22,6 +22,7 @@ export function orgCompute(trip: Trip, upTo?: number): TripResult | null {
       cards: r.cards,
       penalties: r.penalties,
     })),
+    maxAdjustment: trip.maxAdjustment ?? 2,
   };
   return computeTrip(input);
 }

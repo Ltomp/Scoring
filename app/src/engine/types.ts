@@ -46,6 +46,8 @@ export interface TripInput {
     cards: (Card | null)[];
     penalties: number[];
   }[];
+  /** cap on the daily handicap adjustment (default 2, the verified default) */
+  maxAdjustment?: number;
 }
 
 export interface TripResult {
