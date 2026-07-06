@@ -1,10 +1,91 @@
-import { useRef } from "react";
-import { mutate, normaliseTrip, Trip, useAppState } from "../../state/store";
+import { useEffect, useRef, useState } from "react";
+import { adoptTrip, getState, mutate, normaliseTrip, Trip, useAppState } from "../../state/store";
 import { nav } from "../../router";
+import { DropboxConfig } from "../../share/payloads";
+import { DEFAULT_DROPBOX } from "../../dropboxConfig";
+import { deleteTrip, listTrips } from "../../sync/dropbox";
+import { applyTripMeta, TripMeta } from "../../state/tripSync";
+import { fetchAndMergeAllCards } from "../../state/cardSync";
+
+function sameDropbox(a: DropboxConfig, b: DropboxConfig): boolean {
+  return a.url === b.url && a.anonKey === b.anonKey;
+}
+
+/**
+ * Every drop-box project this device has any relationship with: the
+ * baked-in default (so a fresh device still discovers the common case),
+ * plus any custom project already used by a trip this device knows about.
+ */
+function knownDropboxes(trips: Trip[]): DropboxConfig[] {
+  const list: DropboxConfig[] = DEFAULT_DROPBOX ? [DEFAULT_DROPBOX] : [];
+  for (const t of trips) {
+    if (t.dropbox && !list.some((d) => sameDropbox(d, t.dropbox!))) list.push(t.dropbox);
+  }
+  return list;
+}
+
+/**
+ * #/org auto-discovers every trip on a known drop-box project — no link/QR
+ * handshake required (see supabase/schema.sql's gts_list_trips). Trips
+ * already known locally are left untouched; anything new is adopted and
+ * hydrated in place.
+ */
+function useTripDiscovery() {
+  const [checking, setChecking] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const configs = knownDropboxes(getState().trips);
+    if (configs.length === 0) return;
+    setChecking(true);
+    (async () => {
+      for (const cfg of configs) {
+        try {
+          const rows = await listTrips<TripMeta>(cfg);
+          if (cancelled) return;
+          for (const row of rows) {
+            if (getState().trips.some((t) => t.id === row.id)) continue;
+            mutate((d) => {
+              if (d.trips.some((t) => t.id === row.id)) return;
+              const trip = adoptTrip({
+                v: 1, kind: "org", tripId: row.id, tripName: row.state?.name ?? "",
+                dropbox: cfg, writeKey: row.writeKey, readKey: row.readKey,
+              });
+              if (row.state) applyTripMeta(trip, row.state);
+              d.trips.unshift(trip);
+            });
+            const trip = getState().trips.find((t) => t.id === row.id);
+            if (trip) fetchAndMergeAllCards(trip).catch(() => {});
+          }
+        } catch {
+          // offline or that project is unreachable — skip it, don't block the rest
+        }
+      }
+    })().finally(() => { if (!cancelled) setChecking(false); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return checking;
+}
 
 export function OrgHome() {
   const { trips } = useAppState();
+  const checking = useTripDiscovery();
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const removeTrip = async (t: Trip) => {
+    if (!confirm(`Delete "${t.name}" forever? This cannot be undone.`)) return;
+    if (t.dropbox) {
+      try {
+        await deleteTrip(t.dropbox, t.id, t.readKey);
+      } catch (e) {
+        alert(`Couldn't delete from the drop-box (${e instanceof Error ? e.message : e}) — try again.`);
+        return;
+      }
+    }
+    mutate((d) => { d.trips = d.trips.filter((x) => x.id !== t.id); });
+  };
 
   const restore = async (file: File) => {
     try {
@@ -34,7 +115,8 @@ export function OrgHome() {
         <span />
       </div>
       <main>
-        {active.length === 0 && (
+        {checking && <p className="hint" style={{ padding: "0 6px" }}>Checking for other trips…</p>}
+        {active.length === 0 && !checking && (
           <div className="card">
             <div className="label">No trips yet</div>
             <p className="hint" style={{ fontSize: 13.5 }}>
@@ -68,9 +150,9 @@ export function OrgHome() {
           }}
         />
         <p className="hint" style={{ padding: "0 6px" }}>
-          Got a trip with a drop-box configured? Open it here, then use "Access this trip
-          on another device" inside it — no export/import needed. Restore-from-backup is
-          just the fallback for trips without one.
+          Any trip with a drop-box configured just shows up here on its own — no
+          export/import, no link to generate. Restore-from-backup is the fallback for
+          trips with no drop-box at all.
         </p>
 
         {archived.length > 0 && <div className="label" style={{ padding: "8px 6px 0" }}>Archive</div>}
@@ -79,13 +161,7 @@ export function OrgHome() {
             <button className="p-name" style={{ background: "none", border: 0, textAlign: "left", padding: 0 }} onClick={() => nav(`/org/t/${t.id}`)}>
               {t.name} <span className="p-sub">· {t.year}</span>
             </button>
-            <button
-              className="btn small danger"
-              onClick={() => {
-                if (confirm(`Delete "${t.name}" forever? This cannot be undone.`))
-                  mutate((d) => { d.trips = d.trips.filter((x) => x.id !== t.id); });
-              }}
-            >
+            <button className="btn small danger" onClick={() => void removeTrip(t)}>
               Delete
             </button>
           </div>

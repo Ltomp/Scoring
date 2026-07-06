@@ -7,6 +7,11 @@
 --   * players hold only the write key -> can submit their own card, can
 --     never read anything back
 --   * organisers hold the read key -> can read cards and manage rounds
+--   * gts_list_trips is the one deliberate exception: it takes no key at
+--     all, so #/org can auto-discover every trip on this project. Anyone
+--     who can reach this project (i.e. has this URL + anon key) can see
+--     and control every trip registered here. Use your own project if
+--     you want a trip's visibility limited to people you've told about it.
 
 create table if not exists public.gts_trips (
   id uuid primary key,
@@ -138,6 +143,34 @@ begin
   return query select s.state, s.updated_at from gts_trip_state s where s.trip_id = p_trip;
 end $$;
 
+-- Deliberately unauthenticated (no key argument): lets #/org auto-discover
+-- every trip registered against this drop-box project without a link/QR
+-- handshake first. This is a trust-model choice, not an oversight — see
+-- the README's "Trust model & limits" section. Isolation is still per
+-- project: a trip on someone's own Supabase project is only listable by
+-- whoever that organiser has given the project's URL/key to.
+create or replace function public.gts_list_trips()
+returns table (id uuid, write_key text, read_key text, state jsonb, updated_at timestamptz)
+language sql security definer set search_path = public as $$
+  select t.id, t.write_key, t.read_key, s.state, coalesce(s.updated_at, t.created_at)
+  from gts_trips t
+  left join gts_trip_state s on s.trip_id = t.id;
+$$;
+
+-- Called by the organiser app's Delete action. Without this, a "deleted"
+-- trip would just silently reappear next time gts_list_trips runs, since
+-- deleting only from local storage never touched the database row.
+create or replace function public.gts_delete_trip(
+  p_trip uuid, p_key text
+) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not exists (select 1 from gts_trips t where t.id = p_trip and t.read_key = p_key) then
+    raise exception 'bad trip or key';
+  end if;
+  delete from gts_trips where id = p_trip; -- cascades to cards/completed/trip_state
+end $$;
+
 revoke all on public.gts_trips, public.gts_cards, public.gts_completed, public.gts_trip_state from anon, authenticated;
 grant execute on function
   public.gts_register_trip(uuid, text, text),
@@ -145,5 +178,7 @@ grant execute on function
   public.gts_fetch_cards(uuid, text, int),
   public.gts_complete_round(uuid, text, int, boolean),
   public.gts_save_trip_state(uuid, text, jsonb),
-  public.gts_load_trip_state(uuid, text)
+  public.gts_load_trip_state(uuid, text),
+  public.gts_list_trips(),
+  public.gts_delete_trip(uuid, text)
 to anon;

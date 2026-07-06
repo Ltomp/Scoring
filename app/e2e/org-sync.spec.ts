@@ -81,3 +81,65 @@ test("organiser access link syncs a trip to a second device with no JSON transfe
   await page1.goto(`${APP}#/org/t/${tripId}/r/1`);
   await expect(page1.getByTestId("penalty-0")).toHaveValue("2", { timeout: 20000 });
 });
+
+/**
+ * The point of this test: #/org auto-discovers every trip on a drop-box
+ * project it knows about — not just ones it was handed a link for. Device 2
+ * only ever gets a link for Trip A; Trip B is created independently by a
+ * third device on the SAME stub project and never shared with device 2 at
+ * all, yet it just appears on device 2's #/org. Deleting it then removes it
+ * from the drop-box for good, so it doesn't come back.
+ */
+test("a trip nobody sent a link for still shows up on #/org, and Delete removes it for good", async ({ browser }) => {
+  test.setTimeout(60000);
+  const stub = await startStubDropbox();
+
+  // ---- device 1: create Trip A and grab its access link for device 2 only
+  const dev1 = await browser.newContext({ viewport: { width: 390, height: 760 } });
+  const page1 = await dev1.newPage();
+  await page1.goto(`${APP}#/org`);
+  await page1.getByTestId("new-trip").click();
+  await page1.getByTestId("trip-name").fill("Trip A");
+  await page1.getByRole("button", { name: /Use my own/ }).click();
+  await page1.getByTestId("dropbox-url").fill(stub.url);
+  await page1.getByTestId("dropbox-key").fill("stub-key");
+  await page1.getByTestId("create-trip").click();
+  await page1.getByTestId("setup-done").click();
+
+  await page1.getByRole("button", { name: /Access this trip on another device/ }).click();
+  const accessUrl = await page1.getByTestId("share-url").inputValue();
+
+  // ---- device 2: adopt Trip A via the link (this is how it learns about the stub project)
+  const dev2 = await browser.newContext({ viewport: { width: 390, height: 760 } });
+  const page2 = await dev2.newPage();
+  await page2.goto(accessUrl);
+  await expect(page2.getByRole("button", { name: /Access this trip on another device/ })).toBeVisible({ timeout: 20000 });
+
+  // ---- device 3: an unrelated organiser creates Trip B on the SAME project — no link ever shared
+  const dev3 = await browser.newContext({ viewport: { width: 390, height: 760 } });
+  const page3 = await dev3.newPage();
+  await page3.goto(`${APP}#/org`);
+  await page3.getByTestId("new-trip").click();
+  await page3.getByTestId("trip-name").fill("Trip B");
+  await page3.getByRole("button", { name: /Use my own/ }).click();
+  await page3.getByTestId("dropbox-url").fill(stub.url);
+  await page3.getByTestId("dropbox-key").fill("stub-key");
+  await page3.getByTestId("create-trip").click();
+  await page3.getByTestId("setup-done").click();
+
+  // ---- device 2 revisits #/org — Trip B is just there, automatically
+  await page2.goto(`${APP}#/org`);
+  await expect(page2.getByText("Trip B")).toBeVisible({ timeout: 20000 });
+
+  // ---- delete Trip B from device 2 and confirm it doesn't reappear
+  page2.on("dialog", (d) => d.accept());
+  await page2.getByText("Trip B").click();
+  await page2.getByRole("button", { name: /Archive trip/ }).click();
+  await page2.goto(`${APP}#/org`);
+  await expect(page2.getByText("Trip B")).toBeVisible({ timeout: 20000 }); // now in the archive list
+  await page2.getByRole("button", { name: "Delete" }).click();
+  await expect(page2.getByText("Trip B")).not.toBeVisible();
+
+  await page2.goto(`${APP}#/org`);
+  await expect(page2.getByText("Trip B")).not.toBeVisible({ timeout: 20000 }); // gone from the drop-box, not just hidden locally
+});
