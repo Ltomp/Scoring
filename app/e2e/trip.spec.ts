@@ -35,6 +35,7 @@ test("organiser → player → results round trip", async ({ browser }) => {
   await orgPage.getByRole("button", { name: /^Organiser/ }).click();
   await orgPage.getByTestId("new-trip").click();
   await orgPage.getByTestId("trip-name").fill("E2E Cup");
+  await orgPage.getByRole("button", { name: /Use my own/ }).click(); // point at the test stub, not the real default
   await orgPage.getByTestId("dropbox-url").fill(stub.url);
   await orgPage.getByTestId("dropbox-key").fill("stub-anon-key");
   await orgPage.getByTestId("create-trip").click();
@@ -134,7 +135,11 @@ test("laptop organiser keys cards straight into the desk grid", async ({ browser
   await page.getByRole("button", { name: /^Organiser/ }).click();
   await page.getByTestId("new-trip").click();
   await page.getByTestId("trip-name").fill("Desk Cup");
-  await page.getByTestId("create-trip").click(); // no drop-box: QR/keyed only
+  // opt out of the default drop-box entirely: pure keyed-card mode
+  await page.getByRole("button", { name: /Use my own/ }).click();
+  await page.getByTestId("dropbox-url").fill("");
+  await page.getByTestId("dropbox-key").fill("");
+  await page.getByTestId("create-trip").click();
 
   for (const [name, hcap] of [["Dee Delta", "10"], ["Ed Echo", "6"]] as const) {
     await page.getByTestId("player-name").fill(name);

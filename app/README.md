@@ -35,15 +35,24 @@ players and 10 rounds per trip; multi-trip with archive.
   (JSON)** / **Restore trip from backup** to move the comp between phone
   and laptop; cards auto-collect on whichever device is open.
 
-## One-time setup (trip organiser)
+## Setup
 
-1. Create a free project at supabase.com (any name, nearest region).
-2. Open **SQL Editor**, paste the whole of [`supabase/schema.sql`](supabase/schema.sql), Run.
-3. In **Project Settings → API**, copy the *Project URL* and *anon public* key.
-4. In the app: Organiser → Start new trip → paste both. Done — every future
-   trip reuses them, and nobody else ever configures anything.
+None needed — a shared drop-box (`src/dropboxConfig.ts`) is baked into the
+app, so **Start new trip** just works. That file holds a Supabase *project
+URL* and its **anon (public) key** — safe to commit; it's the key Supabase
+designs for client-side use, and the actual security boundary is the
+per-trip write/read keys minted at trip creation and enforced by the
+SECURITY DEFINER functions in [`supabase/schema.sql`](supabase/schema.sql)
+(the tables themselves are unreachable via the anon key). The secret
+`service_role` key is never used and must never go in this app.
 
-Skipping this still works — organisers then key every card by hand.
+Want your own project instead (or none at all)? On **New trip**, click
+**Use my own** next to "Card drop-box":
+1. Create a free project at supabase.com, open **SQL Editor**, paste the
+   whole of `supabase/schema.sql`, Run.
+2. Copy its *Project URL* and *anon public* key from **Project Settings → API**
+   into the two fields (or clear both to run with no drop-box — organisers
+   then key every card by hand).
 
 ## Trip flow
 
@@ -86,8 +95,9 @@ lives at `https://<owner>.github.io/Scoring/`.
   on paper. Nobody sees the comp except organisers.
 - Marker pairs should cover the field (A marks B, B marks A, and so on);
   organisers can key a card for anyone left unmarked.
-- Anyone with the app URL could create their own trips against their own
-  drop-box; they can't touch yours without your keys.
+- Every trip gets its own random write/read keys, even ones sharing the
+  default drop-box — one trip's keys can't read another trip's cards.
+  Anyone can also point their own trip at their own Supabase project.
 - One primary organiser device runs the comp (move it via backup
   export/import between phone and laptop); penalties and round completion
   live on that device.

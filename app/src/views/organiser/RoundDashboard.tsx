@@ -211,7 +211,7 @@ function DeskGrid({ trip, round, rr, daily }: {
               return (
                 <tr key={i}>
                   <td className="name">{p.name}</td>
-                  <td className="num">{daily[i]}</td>
+                  <td className="num" data-testid={`dg-hc-${i}`}>{daily[i]}</td>
                   {course.pars.map((_, h) => (
                     <td key={h} className="scorecell">
                       <input

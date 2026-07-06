@@ -18,6 +18,7 @@ test("capture key screens @shots", async ({ browser }) => {
   await orgPage.getByRole("button", { name: /^Organiser/ }).click();
   await orgPage.getByTestId("new-trip").click();
   await orgPage.getByTestId("trip-name").fill("Peninsula Trip");
+  await orgPage.getByRole("button", { name: /Use my own/ }).click();
   await orgPage.getByTestId("dropbox-url").fill(stub.url);
   await orgPage.getByTestId("dropbox-key").fill("anon-key");
   await orgPage.getByTestId("create-trip").click();
@@ -100,6 +101,9 @@ test("capture laptop organiser screens @shots", async ({ browser }) => {
   await page.getByRole("button", { name: /^Organiser/ }).click();
   await page.getByTestId("new-trip").click();
   await page.getByTestId("trip-name").fill("Peninsula Trip");
+  await page.getByRole("button", { name: /Use my own/ }).click();
+  await page.getByTestId("dropbox-url").fill("");
+  await page.getByTestId("dropbox-key").fill("");
   await page.getByTestId("create-trip").click();
 
   const roster: [string, string][] = [
